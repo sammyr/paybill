@@ -8,10 +8,12 @@ import { Select } from "@/components/ui/select";
 import { LogoUpload } from "@/components/ui/logo-upload";
 import { getDatabase } from '@/lib/db';
 import type { Settings } from '@/lib/db/interfaces';
+import { useToast } from "@/components/ui/use-toast";
 
 export default function EinstellungenPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -29,10 +31,18 @@ export default function EinstellungenPage() {
     const db = getDatabase();
     try {
       await db.updateSettings(settings);
-      alert('Einstellungen wurden gespeichert');
+      toast({
+        title: "Einstellungen gespeichert",
+        description: "Ihre Einstellungen wurden erfolgreich gespeichert.",
+        duration: 3000
+      });
     } catch (error) {
-      console.error('Fehler beim Speichern der Einstellungen:', error);
-      alert('Fehler beim Speichern der Einstellungen');
+      toast({
+        title: "Fehler beim Speichern",
+        description: "Die Einstellungen konnten nicht gespeichert werden.",
+        variant: "destructive",
+        duration: 3000
+      });
     }
   };
 
@@ -80,12 +90,109 @@ export default function EinstellungenPage() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="street">Straße</Label>
+            <Input
+              id="street"
+              value={settings.street || ''}
+              onChange={(e) => setSettings({ ...settings, street: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="zip">PLZ</Label>
+              <Input
+                id="zip"
+                value={settings.zip || ''}
+                onChange={(e) => setSettings({ ...settings, zip: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="city">Stadt</Label>
+              <Input
+                id="city"
+                value={settings.city || ''}
+                onChange={(e) => setSettings({ ...settings, city: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="country">Land</Label>
+            <Input
+              id="country"
+              value={settings.country || 'Deutschland'}
+              onChange={(e) => setSettings({ ...settings, country: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="address">Adresse</Label>
             <Input
               id="address"
               value={settings.address || ''}
               onChange={(e) => setSettings({ ...settings, address: e.target.value })}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="firmenzusatz">Firmenzusatz</Label>
+            <Input
+              id="firmenzusatz"
+              value={settings.companyAddition || ''}
+              onChange={(e) => setSettings({ ...settings, companyAddition: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="inhaber">Inhaber</Label>
+            <Input
+              id="inhaber"
+              value={settings.owner || ''}
+              onChange={(e) => setSettings({ ...settings, owner: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rechtsform">Rechtsform</Label>
+            <Select
+              id="rechtsform"
+              value={settings.legalForm || 'Einzelunternehmer'}
+              onChange={(e) => setSettings({ ...settings, legalForm: e.target.value })}
+            >
+              <option value="Einzelunternehmer">Einzelunternehmer</option>
+              <option value="GmbH">GmbH</option>
+              <option value="UG">UG</option>
+              <option value="AG">AG</option>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="branche">Branche</Label>
+            <Select
+              id="branche"
+              value={settings.industry || 'Software Entwicklung'}
+              onChange={(e) => setSettings({ ...settings, industry: e.target.value })}
+            >
+              <option value="Software Entwicklung">Software Entwicklung</option>
+              <option value="IT-Beratung">IT-Beratung</option>
+              <option value="Webdesign">Webdesign</option>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="mitarbeiter">Mitarbeiterzahl</Label>
+            <Select
+              id="mitarbeiter"
+              value={settings.employees || 'Nur ich'}
+              onChange={(e) => setSettings({ ...settings, employees: e.target.value })}
+            >
+              <option value="Nur ich">Nur ich</option>
+              <option value="2-5">2-5 Mitarbeiter</option>
+              <option value="6-10">6-10 Mitarbeiter</option>
+              <option value="11+">11+ Mitarbeiter</option>
+            </Select>
           </div>
         </div>
 

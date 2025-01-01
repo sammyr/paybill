@@ -21,17 +21,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="de">
+      <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1">{children}</main>
-        </div>
-        <Toaster />
+        <Sidebar />
+        <main className="md:pl-64 min-h-screen">
+          <div className="p-4">
+            {children}
+          </div>
+        </main>
+        <Toaster position="top-center" />
       </body>
     </html>
   );

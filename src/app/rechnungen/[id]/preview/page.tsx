@@ -96,7 +96,7 @@ export default function InvoicePreviewPage() {
         </div>
       </div>
 
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      <div className="bg-white  rounded-lg overflow-hidden">
         <InvoicePDF 
           invoice={invoice}
           settings={settings}

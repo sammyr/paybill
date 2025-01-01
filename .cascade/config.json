@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "protection": {
+    "fileModification": {
+      "mode": "strict",
+      "rules": [
+        {
+          "pattern": "src/**/*.tsx",
+          "requireExplicitPermission": true,
+          "message": "Diese React-Komponente kann nur nach expliziter Anfrage geändert werden."
+        },
+        {
+          "pattern": "src/**/*.ts",
+          "requireExplicitPermission": true,
+          "message": "Diese TypeScript-Datei kann nur nach expliziter Anfrage geändert werden."
+        },
+        {
+          "pattern": "src/lib/**/*",
+          "requireExplicitPermission": true,
+          "message": "Bibliotheksdateien können nur nach expliziter Anfrage geändert werden."
+        }
+      ],
+      "exceptions": [
+        {
+          "pattern": "*.json",
+          "requireExplicitPermission": false
+        },
+        {
+          "pattern": "*.md",
+          "requireExplicitPermission": false
+        },
+        {
+          "pattern": "public/**/*",
+          "requireExplicitPermission": false
+        }
+      ]
+    }
+  },
+  "editor": {
+    "defaultBehavior": {
+      "askBeforeModifying": true,
+      "showWarnings": true
+    }
+  },
+  "safety": {
+    "backups": {
+      "enabled": true,
+      "location": ".cascade/backups",
+      "keepCount": 5
+    }
+  }
+}
