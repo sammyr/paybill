@@ -1,0 +1,38 @@
+/**
+ * WARNUNG: Diese Datei enthält wichtige Funktionalität für das Rechnungssystem.
+ * Keine Styles dürfen entfernt werden, da dies das Layout beschädigen könnte.
+ * Bitte seien Sie bei Änderungen besonders vorsichtig.
+ */
+
+/* DIN A4 Format */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* Allgemeine Styles */
+.invoice-page {
+  background: white;
+  position: relative;
+  box-shadow: 0 0 0.5cm rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Anpassungen */
+@media screen {
+  .invoice-page {
+    margin: 0 auto;
+    max-width: 210mm;
+  }
+}
+
+/* InvoicePDF Styles */
+.ml-4 {
+  margin-top: -9rem;
+}
