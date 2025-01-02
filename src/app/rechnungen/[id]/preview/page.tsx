@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import { InvoicePDF } from '@/components/invoice/InvoicePDF';
+import InvoicePDF from '@/components/invoice/InvoicePDF';
 import { getDatabase } from '@/lib/db';
 import type { Invoice } from '@/lib/db/interfaces';
 
@@ -96,7 +96,7 @@ export default function InvoicePreviewPage() {
         </div>
       </div>
 
-      <div className="bg-white  rounded-lg overflow-hidden">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <InvoicePDF 
           invoice={invoice}
           settings={settings}
