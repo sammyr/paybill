@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="180" height="40" viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Favicon als Logo -->
+  <g transform="translate(0, 4) scale(0.8)">
+    <use href="/favicon.svg#logo" />
+  </g>
+  <!-- PayBill Text -->
+  <text x="50" y="27" font-family="Arial" font-size="22" font-weight="bold" fill="#1e293b">PayBill</text>
+</svg>

@@ -34,7 +34,7 @@ interface MenuItem {
 }
 
 const mainMenuItems: MenuItem[] = [
-  { name: 'Übersicht', path: '/', icon: LayoutDashboard },
+  { name: 'Übersicht', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Rechnungen', path: '/rechnungen', icon: FileText },
   { name: 'Angebote', path: '/angebote', icon: FileCheck },
   { name: 'Steuern', path: '/steuern', icon: Calculator },

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Inter } from 'next/font/google'
 import "./globals.css";
-import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
@@ -37,11 +36,8 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" type="image/x-icon" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased`}>
-        <Sidebar />
-        <main className="md:pl-64 min-h-screen">
-          <div className="p-4">
-            {children}
-          </div>
+        <main className="min-h-screen">
+          {children}
         </main>
         <Toaster position="top-center" />
       </body>
