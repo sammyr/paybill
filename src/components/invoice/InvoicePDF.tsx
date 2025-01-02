@@ -17,17 +17,17 @@ interface InvoicePDFProps {
   mode?: 'preview' | 'print';
 }
 
-export default function InvoicePDF({ invoice, settings, mode = 'preview' }: InvoicePDFProps) {
+const InvoicePDF = ({ invoice, settings, mode = 'preview' }: InvoicePDFProps) => {
   const calculateTotals = () => {
     const netTotal = invoice.positions.reduce((sum, pos) => {
-      const positionTotal = pos.quantity * pos.price * (1 - (pos.discount || 0) / 100);
+      const positionTotal = pos.quantity * pos.unitPrice;
       return sum + positionTotal;
     }, 0);
 
     // Berechne MwSt. für jede Position separat
     const vatTotals = invoice.positions.reduce((totals, pos) => {
-      const positionNet = pos.quantity * pos.price * (1 - (pos.discount || 0) / 100);
-      const vatRate = pos.vat;
+      const positionNet = pos.quantity * pos.unitPrice;
+      const vatRate = pos.taxRate;
       totals[vatRate] = (totals[vatRate] || 0) + (positionNet * vatRate / 100);
       return totals;
     }, {} as { [key: number]: number });
@@ -57,19 +57,15 @@ export default function InvoicePDF({ invoice, settings, mode = 'preview' }: Invo
           <div className="mb-16">
             {/* Logo */}
             <div className="text-right mb-4">
-              {settings.logo ? (
-                <img 
-                  src={settings.logo} 
-                  alt="Firmenlogo" 
-                  className="w-96 h-auto ml-auto" 
-                  style={{
-                    maxWidth: '70%',
-                    objectFit: 'contain'
-                  }}
-                />
-              ) : (
-                <div className="w-96 h-36 ml-auto" />
-              )}
+              <img 
+                src={settings.logo || '/default-logo.svg'} 
+                alt="Firmenlogo" 
+                className="w-96 h-auto ml-auto" 
+                style={{
+                  maxWidth: '70%',
+                  objectFit: 'contain'
+                }}
+              />
             </div>
 
             {/* Absender und QR-Code */}
@@ -146,13 +142,13 @@ export default function InvoicePDF({ invoice, settings, mode = 'preview' }: Invo
               </thead>
               <tbody>
                 {invoice.positions.map((position, index) => {
-                  const positionTotal = position.quantity * position.price * (1 - (position.discount || 0) / 100);
+                  const positionTotal = position.quantity * position.unitPrice;
                   return (
                     <tr key={position.id || index} className="border-b">
                       <td className="py-2">{index + 1}.</td>
                       <td className="py-2">{position.description}</td>
                       <td className="text-right py-2">{position.quantity.toFixed(2)} Tag(e)</td>
-                      <td className="text-right py-2">{position.price.toFixed(2)} EUR</td>
+                      <td className="text-right py-2">{position.unitPrice.toFixed(2)} EUR</td>
                       <td className="text-right py-2">{positionTotal.toFixed(2)} EUR</td>
                     </tr>
                   );
@@ -192,4 +188,6 @@ export default function InvoicePDF({ invoice, settings, mode = 'preview' }: Invo
       </div>
     </div>
   );
-}
+};
+
+export default InvoicePDF;

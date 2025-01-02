@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'invoice_draft';
+const STORAGE_KEY = 'invoiceFormData';
 
 export interface InvoiceFormData {
   contactId?: string;
@@ -72,15 +72,17 @@ export function useInvoiceFormStorage(initialData?: InvoiceFormData): [
     if (saved) {
       try {
         const parsedData = JSON.parse(saved);
-        // Stelle sicher, dass recipient existiert
-        if (!parsedData.recipient) {
-          parsedData.recipient = defaultData.recipient;
-        }
-        // Stelle sicher, dass positions ein Array ist
-        if (!Array.isArray(parsedData.positions)) {
-          parsedData.positions = defaultData.positions;
-        }
-        return { ...defaultData, ...parsedData };
+        // Stelle sicher, dass alle erforderlichen Felder vorhanden sind
+        return {
+          ...defaultData,
+          ...parsedData,
+          recipient: {
+            ...defaultData.recipient,
+            ...(parsedData.recipient || {})
+          },
+          positions: Array.isArray(parsedData.positions) ? parsedData.positions : defaultData.positions,
+          contactId: parsedData.contactId || defaultData.contactId
+        };
       } catch (e) {
         console.error('Fehler beim Laden der gespeicherten Rechnungsdaten:', e);
         return initialData || defaultData;
@@ -92,6 +94,18 @@ export function useInvoiceFormStorage(initialData?: InvoiceFormData): [
 
   const [formData, setFormData] = useState<InvoiceFormData>(getInitialState);
 
+  // Lade die Daten beim ersten Rendern und wenn sich der Storage ändert
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setFormData(getInitialState());
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [getInitialState]);
+
   const updateFormData = (newData: InvoiceFormData) => {
     setFormData(newData);
     if (typeof window !== 'undefined') {
@@ -100,11 +114,10 @@ export function useInvoiceFormStorage(initialData?: InvoiceFormData): [
   };
 
   const clearFormData = () => {
-    const defaultData = getInitialState();
-    setFormData(defaultData);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY);
     }
+    setFormData(getInitialState());
   };
 
   return [formData, updateFormData, clearFormData];

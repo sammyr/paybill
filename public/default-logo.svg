@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="200" viewBox="0 0 1200 200" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <!-- ONLINE MEDIEN SERVICE -->
+  <text x="50" y="100" font-family="Arial" font-size="80" fill="#4A4A4A" letter-spacing="5">
+    ONLINE•MEDIEN•SERVICE
+  </text>
+  <!-- SAMMY RICHTER -->
+  <text x="50" y="180" font-family="Arial" font-size="60" fill="#FF8C00" letter-spacing="40">
+    SAMMY RICHTER
+  </text>
+</svg>

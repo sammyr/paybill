@@ -7,41 +7,7 @@
 import { DatabaseInterface, Contact, Invoice, Settings, Tax } from './interfaces';
 
 // Beispiel-Kontakte für die Initialisierung
-const initialContacts: Contact[] = [
-  {
-    id: '1',
-    name: 'Mustermann GmbH',
-    type: 'customer',
-    email: 'kontakt@mustermann-gmbh.de',
-    phone: '+49 30 123456',
-    address: 'Musterstraße 1, 10115 Berlin',
-    taxId: 'DE123456789',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Schmidt & Partner',
-    type: 'supplier',
-    email: 'info@schmidt-partner.de',
-    phone: '+49 40 654321',
-    address: 'Hauptstraße 25, 20095 Hamburg',
-    taxId: 'DE987654321',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Weber Consulting',
-    type: 'partner',
-    email: 'mail@weber-consulting.de',
-    phone: '+49 89 112233',
-    address: 'Marienplatz 8, 80331 München',
-    taxId: 'DE456789123',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+const initialContacts: Contact[] = [];
 
 // Beispielrechnungen für die Initialisierung
 const initialInvoices: Invoice[] = [];
@@ -53,7 +19,7 @@ export class MemoryDatabase implements DatabaseInterface {
   private taxes: Tax[] = [];
 
   constructor() {
-    // Lade gespeicherte Kontakte oder verwende Beispieldaten
+    // Lade gespeicherte Kontakte oder verwende leere Liste
     let savedContacts: Contact[] | null = null;
     
     if (typeof window !== 'undefined') {
@@ -72,9 +38,9 @@ export class MemoryDatabase implements DatabaseInterface {
       }
     }
     
-    this.contacts = savedContacts || [...initialContacts];
+    this.contacts = savedContacts || [];
 
-    // Lade gespeicherte Rechnungen oder verwende Beispieldaten
+    // Lade gespeicherte Rechnungen oder verwende leere Liste
     let savedInvoices: Invoice[] | null = null;
     
     if (typeof window !== 'undefined') {
@@ -93,7 +59,7 @@ export class MemoryDatabase implements DatabaseInterface {
       }
     }
     
-    this.invoices = savedInvoices || [...initialInvoices];
+    this.invoices = savedInvoices || [];
 
     // Lade gespeicherte Einstellungen
     if (typeof window !== 'undefined') {
@@ -198,10 +164,55 @@ export class MemoryDatabase implements DatabaseInterface {
     // Generiere eine neue Rechnungsnummer
     const number = this.getNextInvoiceNumber();
 
+    // Berechne die Summen für jede Position
+    const positions = invoice.positions.map(pos => {
+      const quantity = Number(pos.quantity) || 0;
+      const unitPrice = Number(pos.unitPrice) || 0;
+      const taxRate = Number(pos.taxRate) || 0;
+      
+      const totalNet = quantity * unitPrice;
+      const totalGross = totalNet * (1 + taxRate / 100);
+      
+      return {
+        ...pos,
+        id: pos.id || crypto.randomUUID(),
+        quantity,
+        unitPrice,
+        taxRate,
+        totalNet,
+        totalGross
+      };
+    });
+
+    // Berechne die Gesamtsummen
+    const netTotal = positions.reduce((sum, pos) => sum + pos.totalNet, 0);
+    const grossTotal = positions.reduce((sum, pos) => sum + pos.totalGross, 0);
+    const vatTotal = grossTotal - netTotal;
+
+    // Stelle sicher, dass alle erforderlichen Felder vorhanden sind
     const newInvoice: Invoice = {
       ...invoice,
       id: crypto.randomUUID(),
       number: number,
+      date: invoice.date || new Date(),
+      dueDate: invoice.dueDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      recipient: {
+        name: invoice.recipient.name || '',
+        street: invoice.recipient.street || '',
+        zip: invoice.recipient.zip || '',
+        city: invoice.recipient.city || '',
+        country: invoice.recipient.country || 'Deutschland',
+        email: invoice.recipient.email || '',
+        phone: invoice.recipient.phone || '',
+        taxId: invoice.recipient.taxId || ''
+      },
+      contactId: invoice.contactId,
+      positions: positions,
+      netTotal,
+      vatTotal,
+      grossTotal,
+      notes: invoice.notes || '',
+      status: invoice.status || 'draft',
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -219,15 +230,55 @@ export class MemoryDatabase implements DatabaseInterface {
     return invoice;
   }
 
+  async getInvoiceById(id: string): Promise<Invoice | null> {
+    return this.invoices.find(invoice => invoice.id === id) || null;
+  }
+
   async updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice> {
     const index = this.invoices.findIndex(i => i.id === id);
     if (index === -1) throw new Error('Invoice not found');
 
+    // Wenn Positionen aktualisiert werden, berechne die Summen neu
+    let positions = this.invoices[index].positions;
+    let netTotal = this.invoices[index].netTotal;
+    let grossTotal = this.invoices[index].grossTotal;
+    let vatTotal = this.invoices[index].vatTotal;
+
+    if (invoice.positions) {
+      positions = invoice.positions.map(pos => {
+        const quantity = Number(pos.quantity) || 0;
+        const unitPrice = Number(pos.unitPrice) || 0;
+        const taxRate = Number(pos.taxRate) || 0;
+        
+        const totalNet = quantity * unitPrice;
+        const totalGross = totalNet * (1 + taxRate / 100);
+        
+        return {
+          ...pos,
+          id: pos.id || crypto.randomUUID(),
+          quantity,
+          unitPrice,
+          taxRate,
+          totalNet,
+          totalGross
+        };
+      });
+
+      netTotal = positions.reduce((sum, pos) => sum + pos.totalNet, 0);
+      grossTotal = positions.reduce((sum, pos) => sum + pos.totalGross, 0);
+      vatTotal = grossTotal - netTotal;
+    }
+
     const updatedInvoice = {
       ...this.invoices[index],
       ...invoice,
+      positions,
+      netTotal,
+      vatTotal,
+      grossTotal,
       updatedAt: new Date(),
     };
+
     this.invoices[index] = updatedInvoice;
     this.saveInvoices();
     return updatedInvoice;

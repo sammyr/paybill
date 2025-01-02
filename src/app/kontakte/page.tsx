@@ -15,7 +15,13 @@ import { getDatabase } from '@/lib/db';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Pencil } from 'lucide-react';
 
 interface ContactFormData {
@@ -121,59 +127,69 @@ export default function KontaktePage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={editingContact?.name || ''}
-                onChange={(e) => setEditingContact(prev => prev ? {...prev, name: e.target.value} : null)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="type">Typ</Label>
-              <Select
-                id="type"
-                value={editingContact?.type}
-                onChange={(e) => setEditingContact(prev => prev ? {...prev, type: e.target.value as 'customer' | 'supplier' | 'partner'} : null)}
-              >
-                <option value="customer">Kunde</option>
-                <option value="supplier">Lieferant</option>
-                <option value="partner">Partner</option>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-Mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={editingContact?.email || ''}
-                onChange={(e) => setEditingContact(prev => prev ? {...prev, email: e.target.value} : null)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefon</Label>
-              <Input
-                id="phone"
-                value={editingContact?.phone || ''}
-                onChange={(e) => setEditingContact(prev => prev ? {...prev, phone: e.target.value} : null)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Adresse</Label>
-              <Input
-                id="address"
-                value={editingContact?.address || ''}
-                onChange={(e) => setEditingContact(prev => prev ? {...prev, address: e.target.value} : null)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="taxId">Steuernummer</Label>
-              <Input
-                id="taxId"
-                value={editingContact?.taxId || ''}
-                onChange={(e) => setEditingContact(prev => prev ? {...prev, taxId: e.target.value} : null)}
-              />
+            <div className="grid gap-4">
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={editingContact?.name || ''}
+                  onChange={e => setEditingContact({ ...editingContact!, name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="type">Typ</Label>
+                <Select
+                  value={editingContact?.type || 'customer'}
+                  onValueChange={(value) => setEditingContact({ ...editingContact!, type: value as 'customer' | 'supplier' | 'partner' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Typ wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="customer">Kunde</SelectItem>
+                    <SelectItem value="supplier">Lieferant</SelectItem>
+                    <SelectItem value="partner">Partner</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="email">E-Mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={editingContact?.email || ''}
+                  onChange={e => setEditingContact({ ...editingContact!, email: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="phone">Telefon</Label>
+                <Input
+                  id="phone"
+                  value={editingContact?.phone || ''}
+                  onChange={e => setEditingContact({ ...editingContact!, phone: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="address">Adresse</Label>
+                <Input
+                  id="address"
+                  value={editingContact?.address || ''}
+                  onChange={e => setEditingContact({ ...editingContact!, address: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="taxId">Steuernummer</Label>
+                <Input
+                  id="taxId"
+                  value={editingContact?.taxId || ''}
+                  onChange={e => setEditingContact({ ...editingContact!, taxId: e.target.value })}
+                />
+              </div>
             </div>
             <Button type="submit" className="w-full">
               {editingContact?.id ? 'Speichern' : 'Erstellen'}

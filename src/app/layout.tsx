@@ -15,8 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Paybill - Rechnungen & Buchhaltung",
-  description: "Ihre Buchhaltungssoftware",
+  title: "Paybill",
+  description: "Rechnungen einfach erstellen und verwalten",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

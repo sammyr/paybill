@@ -21,9 +21,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import {
+import { 
   Table,
   TableBody,
   TableCell,
@@ -31,8 +31,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  FileText, 
+  Plus, 
+  Download, 
+  Printer, 
+  Copy, 
+  Trash2, 
+  Eye,
+  CheckCircle2,
+  Clock,
+  Ban,
+  AlertCircle,
+  Pencil
+} from 'lucide-react';
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { useRouter } from 'next/navigation';
+import { getDatabase } from '@/lib/db';
+import { Invoice } from '@/lib/db/interfaces';
 
 // Status-Typen für Rechnungen
 type InvoiceStatus = 'Entwurf' | 'Offen' | 'Fällig' | 'Bezahlt' | 'Teilbezahlt' | 'Storno' | 'Festgeschrieben' | 'Wiederkehrend';
@@ -42,189 +65,256 @@ interface Invoice {
   status: InvoiceStatus;
   dueDate: string;
   number: string;
-  customer: string;
+  contactId: string;
   invoiceNumber: string;
   date: string;
-  netAmount: number;
-  grossAmount: number;
+  netTotal: number;
+  vatTotal: number;
+  grossTotal: number;
   isLocked?: boolean;
+  positions: any[];
 }
 
-// Beispiel-Rechnungen
-const sampleInvoices: Invoice[] = [
-  {
-    id: '1',
-    status: 'Offen',
-    dueDate: 'In 14 Tagen',
-    number: '286',
-    customer: 'Schoene Gruesse UG',
-    invoiceNumber: 'Rechnung Nr. 286',
-    date: '18.12.24',
-    netAmount: 840.00,
-    grossAmount: 999.60
-  },
-  {
-    id: '2',
-    status: 'Fällig',
-    dueDate: 'Seit 3 Tagen',
-    number: '285',
-    customer: 'Haushaltsfee LLC',
-    invoiceNumber: 'Rechnung Nr. 285',
-    date: '15.12.24',
-    netAmount: 420.00,
-    grossAmount: 420.00
-  },
-  {
-    id: '3',
-    status: 'Entwurf',
-    dueDate: '-',
-    number: '-',
-    customer: 'Schoene Gruesse UG',
-    invoiceNumber: 'Rechnung Nr. 285',
-    date: '22.11.24',
-    netAmount: 0.00,
-    grossAmount: 0.00
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'paid':
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    case 'pending':
+      return <Clock className="w-4 h-4 text-yellow-500" />;
+    case 'cancelled':
+      return <Ban className="w-4 h-4 text-red-500" />;
+    case 'draft':
+      return <AlertCircle className="w-4 h-4 text-gray-500" />;
+    default:
+      return null;
   }
-];
+};
+
+const getStatusLabel = (status: string) => {
+  const labels: { [key: string]: string } = {
+    paid: 'Bezahlt',
+    pending: 'Ausstehend',
+    cancelled: 'Storniert',
+    draft: 'Entwurf'
+  };
+  return labels[status] || status;
+};
 
 export default function RechnungenPage() {
   const router = useRouter();
-  const [invoices] = useState<Invoice[]>(sampleInvoices);
-  const [selectedStatus, setSelectedStatus] = useState<string>('Alle');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [entriesPerPage, setEntriesPerPage] = useState<string>('10');
 
-  const getStatusColor = (status: InvoiceStatus) => {
-    switch (status) {
-      case 'Offen':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Fällig':
-        return 'bg-red-100 text-red-800';
-      case 'Entwurf':
-        return 'bg-blue-100 text-blue-800';
-      case 'Bezahlt':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const loadInvoices = async () => {
+    const db = getDatabase();
+    const loadedInvoices = await db.listInvoices();
+    
+    // Berechne die Gesamtbeträge für jede Rechnung
+    const processedInvoices = loadedInvoices.map(invoice => {
+      // Stelle sicher, dass positions ein Array ist
+      const positions = Array.isArray(invoice.positions) ? invoice.positions : [];
+      
+      // Berechne die Summen aus den vorberechneten Werten
+      const netTotal = positions.reduce((sum, pos) => sum + (pos.totalNet || 0), 0);
+      const grossTotal = positions.reduce((sum, pos) => sum + (pos.totalGross || 0), 0);
+      const vatTotal = grossTotal - netTotal;
+      
+      return {
+        ...invoice,
+        netTotal: netTotal || 0,
+        vatTotal: vatTotal || 0,
+        grossTotal: grossTotal || 0,
+        number: invoice.number || invoice.invoiceNumber || '-',
+        status: invoice.status || 'draft',
+        dueDate: invoice.dueDate instanceof Date ? invoice.dueDate.toISOString() : invoice.dueDate,
+        positions: positions
+      };
+    });
+    
+    setInvoices(processedInvoices);
+  };
+
+  useEffect(() => {
+    loadInvoices();
+  }, []);
+
+  const handleReset = async () => {
+    if (confirm('Möchten Sie wirklich alle Rechnungen löschen? Dies kann nicht rückgängig gemacht werden.')) {
+      const db = getDatabase();
+      await db.resetDatabase();
+      await loadInvoices();
     }
   };
 
-  const totalOpenAmount = invoices
-    .filter(inv => inv.status === 'Offen' || inv.status === 'Fällig')
-    .reduce((sum, inv) => sum + inv.grossAmount, 0);
+  const handleDownload = async (invoice: Invoice) => {
+    // Implementierung für Download
+    console.log('Download invoice:', invoice.id);
+  };
 
-  const statusOptions: InvoiceStatus[] = [
-    'Entwurf',
-    'Offen',
-    'Fällig',
-    'Bezahlt',
-    'Teilbezahlt',
-    'Storno',
-    'Festgeschrieben',
-    'Wiederkehrend'
-  ];
+  const handlePrint = async (invoice: Invoice) => {
+    // Implementierung für Druck
+    console.log('Print invoice:', invoice.id);
+  };
+
+  const handleDuplicate = async (invoice: Invoice) => {
+    // Implementierung für Duplizieren
+    console.log('Duplicate invoice:', invoice.id);
+  };
+
+  const handleDelete = async (invoice: Invoice) => {
+    if (confirm('Möchten Sie diese Rechnung wirklich löschen?')) {
+      try {
+        const db = getDatabase();
+        await db.deleteInvoice(invoice.id);
+        await loadInvoices();
+      } catch (error) {
+        console.error('Error deleting invoice:', error);
+      }
+    }
+  };
+
+  const filteredInvoices = selectedStatus === 'all' 
+    ? invoices 
+    : invoices.filter(invoice => invoice.status === selectedStatus);
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold mb-1">Rechnungen</h1>
-          <p className="text-sm text-gray-600">
-            Offene Rechnungen: {formatCurrency(totalOpenAmount)} EUR
-          </p>
-        </div>
-        <div className="space-x-2">
-          <Button variant="outline">Rechnung hochladen</Button>
+        <h1 className="text-2xl font-semibold">Rechnungen</h1>
+        <div className="flex gap-4">
+          <Button variant="destructive" onClick={handleReset}>
+            Datenbank zurücksetzen
+          </Button>
           <Button onClick={() => router.push('/rechnungen/neu')}>
-            Rechnung schreiben
-            <span className="ml-2">▼</span>
+            <Plus className="w-4 h-4 mr-2" />
+            Neue Rechnung
           </Button>
         </div>
       </div>
 
-      <div className="flex space-x-2 mb-6 overflow-x-auto">
-        <Button
-          variant={selectedStatus === 'Alle' ? 'default' : 'outline'}
-          onClick={() => setSelectedStatus('Alle')}
-        >
-          Alle
-        </Button>
-        {statusOptions.map((status) => (
-          <Button
-            key={status}
-            variant={selectedStatus === status ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus(status)}
+      <div className="flex items-center space-x-4 mb-6">
+        <div className="flex items-center space-x-2">
+          <Select
+            value={selectedStatus}
+            onValueChange={setSelectedStatus}
           >
-            {status}
-          </Button>
-        ))}
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Status Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Status</SelectItem>
+              <SelectItem value="paid">Bezahlt</SelectItem>
+              <SelectItem value="pending">Ausstehend</SelectItem>
+              <SelectItem value="cancelled">Storniert</SelectItem>
+              <SelectItem value="draft">Entwurf</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Select
+            value={entriesPerPage}
+            onValueChange={setEntriesPerPage}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Einträge pro Seite" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 Einträge</SelectItem>
+              <SelectItem value="25">25 Einträge</SelectItem>
+              <SelectItem value="50">50 Einträge</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            Filter
-          </Button>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            Exportieren
-          </Button>
-        </div>
-      </div>
-
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Status</TableHead>
-            <TableHead>Fälligkeit</TableHead>
-            <TableHead>Rechnungsnr.</TableHead>
-            <TableHead>Kunde</TableHead>
-            <TableHead>Datum</TableHead>
-            <TableHead className="text-right">Betrag (netto)</TableHead>
-            <TableHead className="text-right">Offen (brutto)</TableHead>
-            <TableHead></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {invoices.map((invoice) => (
-            <TableRow key={invoice.id}>
-              <TableCell>
-                <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(invoice.status)}`}>
-                  {invoice.status}
-                </span>
-                {invoice.isLocked && <span className="ml-2">🔒</span>}
-              </TableCell>
-              <TableCell>{invoice.dueDate}</TableCell>
-              <TableCell>{invoice.number}</TableCell>
-              <TableCell>
-                <div>{invoice.customer}</div>
-                <div className="text-sm text-gray-500">{invoice.invoiceNumber}</div>
-              </TableCell>
-              <TableCell>{invoice.date}</TableCell>
-              <TableCell className="text-right">{formatCurrency(invoice.netAmount)} €</TableCell>
-              <TableCell className="text-right">{formatCurrency(invoice.grossAmount)} €</TableCell>
-              <TableCell>
-                <div className="flex items-center justify-end space-x-2">
-                  <Button variant="ghost" size="sm">📧</Button>
-                  <Button variant="ghost" size="sm">⬇️</Button>
-                  <Button variant="ghost" size="sm">⋮</Button>
-                </div>
-              </TableCell>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Status</TableHead>
+              <TableHead>Fällig am</TableHead>
+              <TableHead>Nummer</TableHead>
+              <TableHead>Kontakt</TableHead>
+              <TableHead className="text-right">Netto</TableHead>
+              <TableHead className="text-right">USt.</TableHead>
+              <TableHead className="text-right">Gesamt</TableHead>
+              <TableHead className="text-right">Aktionen</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-
-      <div className="mt-4 flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">←</Button>
-          <span>1 - 25 von 185</span>
-          <Button variant="outline" size="sm">→</Button>
-        </div>
-        <select className="border rounded p-1">
-          <option>25 pro Seite</option>
-          <option>50 pro Seite</option>
-          <option>100 pro Seite</option>
-        </select>
+          </TableHeader>
+          <TableBody>
+            {filteredInvoices.map((invoice) => (
+              <TableRow key={invoice.id}>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    {getStatusIcon(invoice.status)}
+                    <span>{getStatusLabel(invoice.status)}</span>
+                  </div>
+                </TableCell>
+                <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                <TableCell>{invoice.number}</TableCell>
+                <TableCell>{invoice.contactId}</TableCell>
+                <TableCell className="text-right">{formatCurrency(invoice.netTotal)} €</TableCell>
+                <TableCell className="text-right">{formatCurrency(invoice.vatTotal)} €</TableCell>
+                <TableCell className="text-right">{formatCurrency(invoice.grossTotal)} €</TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-end space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/rechnungen/${invoice.id}`)}
+                      title="Anzeigen"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/rechnungen/neu?id=${invoice.id}`)}
+                      title="Bearbeiten"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDownload(invoice)}
+                      title="Herunterladen"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handlePrint(invoice)}
+                      title="Drucken"
+                    >
+                      <Printer className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDuplicate(invoice)}
+                      title="Duplizieren"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(invoice)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Löschen"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

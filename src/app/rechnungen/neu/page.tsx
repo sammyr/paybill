@@ -6,18 +6,23 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { getDatabase } from '@/lib/db';
-import { Contact } from '@/lib/db/interfaces';
-import Link from 'next/link';
-import * as Dialog from '@radix-ui/react-dialog';
-import { useInvoiceFormStorage } from '@/hooks/useInvoiceFormStorage';
-import { CalendarIcon, PlusIcon, TrashIcon, QuestionMarkCircledIcon } from '@radix-ui/react-icons';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { PlusIcon } from '@radix-ui/react-icons';
+import { getDatabase } from '@/lib/db';
+import { useInvoiceFormStorage } from '@/hooks/useInvoiceFormStorage';
+import { Contact, Invoice } from '@/lib/types';
 
 // Hilfsfunktion zur Generierung einer einfachen UUID
 function generateId() {
@@ -100,9 +105,36 @@ export default function NeueRechnungPage() {
   }, []);
 
   useEffect(() => {
-    const db = getDatabase();
-    setContacts(db.contacts);
-  }, []);
+    const loadContacts = async () => {
+      const db = getDatabase();
+      const loadedContacts = await db.listContacts();
+      setContacts(loadedContacts);
+    };
+    loadContacts();
+  }, []); // Keine Dependencies, da wir die Kontakte nur einmal laden müssen
+
+  useEffect(() => {
+    if (!formData.contactId) return;
+    
+    const contact = contacts.find(c => c.id === formData.contactId);
+    if (!contact) {
+      // Kontakt nicht gefunden, setze zurück
+      updateFormData({
+        ...formData,
+        contactId: '',
+        recipient: {
+          name: '',
+          street: '',
+          zip: '',
+          city: '',
+          country: 'Deutschland',
+          email: '',
+          phone: '',
+          taxId: ''
+        }
+      });
+    }
+  }, [contacts, formData.contactId]); // Nur prüfen wenn sich die Kontakte oder die contactId ändert
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -229,16 +261,28 @@ export default function NeueRechnungPage() {
       
       // Erstelle neue Rechnung
       const invoice: Omit<Invoice, 'id' | 'number' | 'createdAt' | 'updatedAt'> = {
-        date: new Date(),
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 Tage ab heute
-        recipient: formData.recipient,
+        date: formData.date ? new Date(formData.date) : new Date(),
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        contactId: formData.contactId,
+        recipient: {
+          name: formData.recipient.name,
+          street: formData.recipient.street,
+          zip: formData.recipient.zip,
+          city: formData.recipient.city,
+          country: formData.recipient.country || 'Deutschland',
+          email: formData.recipient.email,
+          phone: formData.recipient.phone,
+          taxId: formData.recipient.taxId
+        },
         positions: formData.positions?.map(pos => ({
           id: generateId(),
           description: pos.description,
           quantity: Number(pos.quantity),
-          price: Number(pos.price),
-          vat: Number(pos.vat),
-          discount: Number(pos.discount || 0)
+          unitPrice: Number(pos.price),
+          taxRate: Number(pos.vat),
+          amount: Number(pos.quantity) * Number(pos.price),
+          totalNet: Number(pos.quantity) * Number(pos.price),
+          totalGross: Number(pos.quantity) * Number(pos.price) * (1 + Number(pos.vat) / 100)
         })) || [],
         notes: formData.notes,
         status: 'draft'
@@ -247,16 +291,18 @@ export default function NeueRechnungPage() {
       const savedInvoice = await db.createInvoice(invoice);
       console.log('Rechnung gespeichert:', savedInvoice);
 
-      // Lösche die Formulardaten aus dem localStorage
-      clearFormData();
-
+      // Navigiere zuerst
       if (preview) {
-        // Navigiere zur Vorschauseite
-        router.push(`/rechnungen/${savedInvoice.id}/preview`);
+        await router.push(`/rechnungen/${savedInvoice.id}`);
       } else {
-        // Zurück zur Rechnungsübersicht
-        router.push('/rechnungen');
+        await router.push('/rechnungen');
       }
+
+      // Warte einen Moment und lösche dann die Formulardaten
+      setTimeout(() => {
+        clearFormData();
+      }, 500);
+      
     } catch (error) {
       console.error('Fehler beim Speichern:', error);
       alert('Fehler beim Speichern der Rechnung. Bitte versuchen Sie es erneut.');
@@ -309,21 +355,25 @@ export default function NeueRechnungPage() {
 
   const handleContactChange = async (contactId: string) => {
     try {
-      if (!contactId) {
-        updateFormData({
+      if (contactId === 'none') {
+        const emptyRecipient = {
+          name: '',
+          street: '',
+          zip: '',
+          city: '',
+          country: 'Deutschland',
+          email: '',
+          phone: '',
+          taxId: ''
+        };
+        
+        const updatedFormData = {
           ...formData,
           contactId: '',
-          recipient: {
-            name: '',
-            street: '',
-            zip: '',
-            city: '',
-            country: 'Deutschland',
-            email: '',
-            phone: '',
-            taxId: ''
-          }
-        });
+          recipient: emptyRecipient
+        };
+        
+        updateFormData(updatedFormData);
         return;
       }
 
@@ -342,7 +392,7 @@ export default function NeueRechnungPage() {
           [, street, zip, city] = addressMatch;
         }
 
-        updateFormData({
+        const updatedFormData = {
           ...formData,
           contactId: contact.id,
           recipient: {
@@ -355,7 +405,9 @@ export default function NeueRechnungPage() {
             phone: contact.phone || '',
             taxId: contact.taxId || ''
           }
-        });
+        };
+        
+        updateFormData(updatedFormData);
       }
     } catch (error) {
       console.error('Fehler beim Laden des Kontakts:', error);
@@ -400,39 +452,52 @@ export default function NeueRechnungPage() {
           
           <div className="space-y-4">
             {/* Kontaktauswahl */}
-            <div>
-              <label className="block mb-2">
-                Kontakt
-                <span className="text-red-500">*</span>
-              </label>
-              <div className="flex gap-2">
-                <select
-                  className={`flex-1 rounded-md border p-2 ${
-                    validationErrors.recipient ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  value={formData.contactId || ''}
-                  onChange={(e) => handleContactChange(e.target.value)}
-                >
-                  <option value="">Bitte wählen...</option>
-                  {contacts.map((contact) => (
-                    <option key={contact.id} value={contact.id}>
-                      {contact.name}
-                    </option>
-                  ))}
-                </select>
-                <Button variant="outline" onClick={() => setShowContactDialog(true)}>
-                  +
-                </Button>
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Empfänger</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label>
+                    Kontakt
+                    <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Select
+                      defaultValue={formData.contactId}
+                      value={formData.contactId}
+                      onValueChange={handleContactChange}
+                    >
+                      <SelectTrigger className={`flex-1 ${validationErrors.recipient ? 'border-red-500' : ''}`}>
+                        <SelectValue placeholder="Kontakt auswählen">
+                          {contacts.find(c => c.id === formData.contactId)?.name || "Kontakt auswählen"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Kontakt auswählen</SelectItem>
+                        {contacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" onClick={() => setShowContactDialog(true)}>
+                      <PlusIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {validationErrors.recipient && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.recipient}</p>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Straße */}
             <div>
-              <label className="block mb-2">
+              <Label>
                 Straße
                 <span className="text-red-500">*</span>
-              </label>
-              <input
+              </Label>
+              <Input
                 type="text"
                 className={`w-full rounded-md border p-2 ${
                   validationErrors.street ? 'border-red-500' : 'border-gray-300'
@@ -451,11 +516,11 @@ export default function NeueRechnungPage() {
             {/* PLZ und Stadt */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block mb-2">
+                <Label>
                   PLZ
                   <span className="text-red-500">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   type="text"
                   className={`w-full rounded-md border p-2 ${
                     validationErrors.street ? 'border-red-500' : 'border-gray-300'
@@ -471,11 +536,11 @@ export default function NeueRechnungPage() {
                 />
               </div>
               <div>
-                <label className="block mb-2">
+                <Label>
                   Stadt
                   <span className="text-red-500">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   type="text"
                   className={`w-full rounded-md border p-2 ${
                     validationErrors.street ? 'border-red-500' : 'border-gray-300'
@@ -494,8 +559,10 @@ export default function NeueRechnungPage() {
 
             {/* Land */}
             <div>
-              <label className="block mb-2">Land</label>
-              <input
+              <Label>
+                Land
+              </Label>
+              <Input
                 type="text"
                 className="w-full rounded-md border border-gray-300 p-2"
                 value={formData.recipient?.country || 'Deutschland'}
@@ -509,9 +576,6 @@ export default function NeueRechnungPage() {
               />
             </div>
           </div>
-          {validationErrors.recipient && (
-            <p className="text-red-500 text-sm mt-1">{validationErrors.recipient}</p>
-          )}
         </div>
 
         {/* Rechte Spalte - Rechnungsinformationen */}
@@ -521,10 +585,11 @@ export default function NeueRechnungPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Rechnungsdatum<span className="text-red-500">*</span>
-                </label>
-                <input
+                <Label>
+                  Rechnungsdatum
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
                   type="date"
                   className="w-full rounded-md border border-gray-300 p-2"
                   value={formData.date}
@@ -532,10 +597,11 @@ export default function NeueRechnungPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Lieferdatum<span className="text-red-500">*</span>
-                </label>
-                <input
+                <Label>
+                  Lieferdatum
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
                   type="date"
                   className="w-full rounded-md border border-gray-300 p-2"
                   value={formData.deliveryDate}
@@ -546,10 +612,11 @@ export default function NeueRechnungPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Rechnungsnummer<span className="text-red-500">*</span>
-                </label>
-                <input
+                <Label>
+                  Rechnungsnummer
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
                   type="text"
                   className="w-full rounded-md border border-gray-300 p-2"
                   value={formData.invoiceNumber}
@@ -557,8 +624,10 @@ export default function NeueRechnungPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Referenznummer</label>
-                <input
+                <Label>
+                  Referenznummer
+                </Label>
+                <Input
                   type="text"
                   className="w-full rounded-md border border-gray-300 p-2"
                   value={formData.referenceNumber}
@@ -568,16 +637,18 @@ export default function NeueRechnungPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Zahlungsziel</label>
+              <Label>
+                Zahlungsziel
+              </Label>
               <div className="flex items-center gap-2">
-                <input
+                <Input
                   type="date"
                   className="flex-1 rounded-md border border-gray-300 p-2"
                   value={formData.dueDate}
                   onChange={(e) => updateFormData({ ...formData, dueDate: e.target.value })}
                 />
                 <span>in</span>
-                <input
+                <Input
                   type="number"
                   className="w-16 rounded-md border border-gray-300 p-2"
                   value="14"
@@ -594,8 +665,10 @@ export default function NeueRechnungPage() {
       <div className="mt-8">
         <h2 className="text-xl font-semibold mb-4">Kopftext</h2>
         <div>
-          <label className="block text-sm font-medium mb-1">Betreff</label>
-          <input
+          <Label>
+            Betreff
+          </Label>
+          <Input
             type="text"
             className="w-full rounded-md border border-gray-300 p-2"
             value={formData.subject || `Rechnung Nr. ${formData.invoiceNumber}`}
@@ -610,71 +683,69 @@ export default function NeueRechnungPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b">
-              <th className="text-left py-2">Beschreibung</th>
-              <th className="text-right py-2">Menge</th>
-              <th className="text-right py-2">Preis (€)</th>
-              <th className="text-right py-2">MwSt (%)</th>
-              <th className="text-right py-2">Rabatt (%)</th>
-              <th className="text-right py-2">Gesamt (€)</th>
-              <th></th>
+              <th className="text-left py-2 pr-2">Beschreibung</th>
+              <th className="text-right py-2 px-2">Menge</th>
+              <th className="text-right py-2 px-2">Preis (€)</th>
+              <th className="text-right py-2 px-2">MwSt (%)</th>
+              <th className="text-right py-2 px-2">Rabatt (%)</th>
+              <th className="text-right py-2 pl-2 pr-10">Gesamt (€)</th>
+              <th className="w-10"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200">
             {formData.positions?.map((position, index) => (
-              <tr key={index} className="border-b">
-                <td className="py-2">
-                  <input
+              <tr key={index}>
+                <td className="py-2 pr-2">
+                  <Input
                     type="text"
-                    className={`w-full rounded-md border p-2 ${
-                      !position.description ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full ${!position.description ? 'border-red-500' : 'border-gray-300'}`}
                     value={position.description}
                     onChange={(e) => handlePositionChange(index, 'description', e.target.value)}
                   />
                 </td>
-                <td className="py-2">
-                  <input
+                <td className="py-2 px-2">
+                  <Input
                     type="number"
-                    className={`w-full rounded-md border p-2 text-right ${
-                      !position.quantity || Number(position.quantity) <= 0 ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full text-right ${!position.quantity || Number(position.quantity) <= 0 ? 'border-red-500' : 'border-gray-300'}`}
                     value={position.quantity}
                     onChange={(e) => handlePositionChange(index, 'quantity', e.target.value)}
                   />
                 </td>
-                <td className="py-2">
-                  <input
+                <td className="py-2 px-2">
+                  <Input
                     type="number"
-                    className={`w-full rounded-md border p-2 text-right ${
-                      !position.price || Number(position.price) <= 0 ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full text-right ${!position.price || Number(position.price) <= 0 ? 'border-red-500' : 'border-gray-300'}`}
                     value={position.price}
                     onChange={(e) => handlePositionChange(index, 'price', e.target.value)}
                   />
                 </td>
-                <td className="py-2">
-                  <select
-                    className="w-full rounded-md border p-2 text-right"
-                    value={position.vat}
-                    onChange={(e) => handlePositionChange(index, 'vat', e.target.value)}
+                <td className="py-2 px-2">
+                  <Select
+                    value={position.vat.toString()}
+                    onValueChange={(value) => handlePositionChange(index, 'vat', value)}
                   >
-                    <option value="19">19%</option>
-                    <option value="7">7%</option>
-                    <option value="0">0%</option>
-                  </select>
+                    <SelectTrigger className="w-full text-right">
+                      <SelectValue placeholder="MwSt. wählen" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectItem value="19">19%</SelectItem>
+                      <SelectItem value="7">7%</SelectItem>
+                      <SelectItem value="0">0%</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </td>
-                <td className="py-2">
-                  <input
+                <td className="py-2 px-2">
+                  <Input
                     type="number"
-                    className="w-full rounded-md border p-2 text-right"
+                    className="w-full text-right"
                     value={position.discount}
                     onChange={(e) => handlePositionChange(index, 'discount', e.target.value)}
                   />
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-2 pl-2 pr-10 text-right font-medium whitespace-nowrap">
                   {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(position.amount)}
                 </td>
-                <td className="py-2">
+                <td className="py-2 pl-2">
                   <Button
                     variant="ghost"
                     className="text-red-500 hover:text-red-700"
@@ -720,15 +791,15 @@ export default function NeueRechnungPage() {
 
       <div className="mt-8 flex justify-end">
         <div className="w-64 space-y-2">
-          <div className="flex justify-between">
+          <div className="flex justify-between pr-10">
             <span>Gesamtsumme Netto:</span>
             <span>{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between pr-10">
             <span>Umsatzsteuer 19%:</span>
             <span>{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.vatTotal)}</span>
           </div>
-          <div className="flex justify-between font-semibold">
+          <div className="flex justify-between font-semibold pr-10">
             <span>Gesamt:</span>
             <span>{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</span>
           </div>
@@ -738,7 +809,7 @@ export default function NeueRechnungPage() {
       {/* Fußtext */}
       <div className="mt-8">
         <h2 className="text-xl font-semibold mb-4">Fußtext</h2>
-        <textarea
+        <Textarea
           className="w-full rounded-md border border-gray-300 p-2"
           rows={4}
           value={formData.notes}
@@ -748,7 +819,13 @@ export default function NeueRechnungPage() {
       </div>
 
       <div className="mt-8 flex justify-end gap-4">
-        <Button variant="outline" onClick={() => router.push('/rechnungen')}>
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            // Nicht clearFormData aufrufen beim Zurückgehen
+            router.push('/rechnungen');
+          }}
+        >
           Abbrechen
         </Button>
         <Button 
