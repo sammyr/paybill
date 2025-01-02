@@ -16,18 +16,34 @@ import {
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/logo';
 
-const mainMenuItems = [
+interface SidebarProps {
+  className?: string;
+  items: {
+    href: string;
+    title: string;
+    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+    variant: "default" | "ghost";
+  }[];
+}
+
+interface MenuItem {
+  name: string;
+  path: string;
+  icon: any;
+}
+
+const mainMenuItems: MenuItem[] = [
   { name: 'Übersicht', path: '/', icon: LayoutDashboard },
   { name: 'Rechnungen', path: '/rechnungen', icon: FileText },
   { name: 'Steuern', path: '/steuern', icon: Calculator },
   { name: 'Kontakte', path: '/kontakte', icon: Users },
 ];
 
-const bottomMenuItems = [
+const bottomMenuItems: MenuItem[] = [
   { name: 'Einstellungen', path: '/einstellungen', icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({ className, items }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -45,7 +61,7 @@ export function Sidebar() {
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
 
-  const NavLink = ({ item }: { item: { name: string; path: string; icon: any } }) => {
+  const NavLink = ({ item }: { item: MenuItem }) => {
     const isActive = pathname === item.path;
     const Icon = item.icon;
     

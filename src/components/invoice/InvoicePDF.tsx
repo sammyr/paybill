@@ -13,11 +13,17 @@ import { Invoice } from '@/lib/db/interfaces';
 
 interface InvoicePDFProps {
   invoice: Invoice;
-  settings: any;
+  settings: {
+    companyName?: string;
+    street?: string;
+    zip?: string;
+    city?: string;
+    logo?: string;
+  };
   mode?: 'preview' | 'print';
 }
 
-const InvoicePDF = ({ invoice, settings, mode = 'preview' }: InvoicePDFProps) => {
+export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode = 'preview' }) => {
   const calculateTotals = () => {
     const netTotal = invoice.positions.reduce((sum, pos) => {
       const positionTotal = pos.quantity * pos.unitPrice;
@@ -189,5 +195,3 @@ const InvoicePDF = ({ invoice, settings, mode = 'preview' }: InvoicePDFProps) =>
     </div>
   );
 };
-
-export default InvoicePDF;

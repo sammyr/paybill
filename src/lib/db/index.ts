@@ -1,8 +1,8 @@
 import { DatabaseInterface } from './interfaces';
-import { MemoryDatabase } from './memory';
+import MemoryDatabase from './memory';
 
 // Singleton instance
-let db: DatabaseInterface;
+let db: DatabaseInterface | null = null;
 
 export function getDatabase(): DatabaseInterface {
   if (!db) {

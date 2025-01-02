@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-import InvoicePDF from '@/components/invoice/InvoicePDF';
+import { InvoicePDF } from '@/components/invoice/InvoicePDF';
 import { Button } from '@/components/ui/button';
 import { getDatabase } from '@/lib/db';
 import { Invoice, Contact } from '@/lib/db/interfaces';

@@ -12,7 +12,7 @@ const initialContacts: Contact[] = [];
 // Beispielrechnungen für die Initialisierung
 const initialInvoices: Invoice[] = [];
 
-export class MemoryDatabase implements DatabaseInterface {
+class MemoryDatabase implements DatabaseInterface {
   private contacts: Contact[];
   private invoices: Invoice[];
   private settings: Settings | null = null;
@@ -371,3 +371,5 @@ export class MemoryDatabase implements DatabaseInterface {
     return [...this.taxes];
   }
 }
+
+export default MemoryDatabase;
