@@ -281,13 +281,75 @@ export default function EinstellungenPage() {
           <h2 className="text-lg font-semibold">Rechnungen</h2>
           
           <div className="space-y-2">
+            <Label htmlFor="invoiceNumberPrefix">Rechnungsnummer-Präfix</Label>
+            <Select
+              value={settings.invoiceNumberPrefix || 'RE'}
+              onValueChange={(value) => setSettings({ ...settings, invoiceNumberPrefix: value })}
+            >
+              <SelectTrigger id="invoiceNumberPrefix">
+                <SelectValue placeholder="Präfix auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="RE">RE</SelectItem>
+                <SelectItem value="R">R</SelectItem>
+                <SelectItem value="INV">INV</SelectItem>
+                <SelectItem value="CUSTOM">Benutzerdefiniert</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="paymentTermDays">Zahlungsziel (Tage)</Label>
-            <Input
-              id="paymentTermDays"
-              type="number"
-              value={settings.paymentTermDays}
-              onChange={(e) => setSettings({ ...settings, paymentTermDays: parseInt(e.target.value) })}
-            />
+            <Select
+              value={settings.paymentTermDays?.toString() || '14'}
+              onValueChange={(value) => setSettings({ ...settings, paymentTermDays: parseInt(value) })}
+            >
+              <SelectTrigger id="paymentTermDays">
+                <SelectValue placeholder="Zahlungsziel auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 Tage</SelectItem>
+                <SelectItem value="14">14 Tage</SelectItem>
+                <SelectItem value="30">30 Tage</SelectItem>
+                <SelectItem value="45">45 Tage</SelectItem>
+                <SelectItem value="60">60 Tage</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="invoiceTemplate">Rechnungsvorlage</Label>
+            <Select
+              value={settings.invoiceTemplate || 'standard'}
+              onValueChange={(value) => setSettings({ ...settings, invoiceTemplate: value })}
+            >
+              <SelectTrigger id="invoiceTemplate">
+                <SelectValue placeholder="Vorlage auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard</SelectItem>
+                <SelectItem value="modern">Modern</SelectItem>
+                <SelectItem value="classic">Klassisch</SelectItem>
+                <SelectItem value="minimal">Minimalistisch</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="defaultTax">Standard-Steuersatz</Label>
+            <Select
+              value={settings.defaultTax?.toString() || '19'}
+              onValueChange={(value) => setSettings({ ...settings, defaultTax: parseInt(value) })}
+            >
+              <SelectTrigger id="defaultTax">
+                <SelectValue placeholder="Steuersatz auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">0% (Steuerfrei)</SelectItem>
+                <SelectItem value="7">7% (Ermäßigt)</SelectItem>
+                <SelectItem value="19">19% (Standard)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
