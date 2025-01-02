@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LogoUpload } from "@/components/ui/logo-upload";
 import { getDatabase } from '@/lib/db';
 import type { Settings } from '@/lib/db/interfaces';
@@ -157,70 +163,116 @@ export default function EinstellungenPage() {
           <div className="space-y-2">
             <Label htmlFor="rechtsform">Rechtsform</Label>
             <Select
-              id="rechtsform"
               value={settings.legalForm || 'Einzelunternehmer'}
-              onChange={(e) => setSettings({ ...settings, legalForm: e.target.value })}
+              onValueChange={(value) => setSettings({ ...settings, legalForm: value })}
             >
-              <option value="Einzelunternehmer">Einzelunternehmer</option>
-              <option value="GmbH">GmbH</option>
-              <option value="UG">UG</option>
-              <option value="AG">AG</option>
+              <SelectTrigger id="rechtsform">
+                <SelectValue placeholder="Rechtsform auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Einzelunternehmer">Einzelunternehmer</SelectItem>
+                <SelectItem value="GmbH">GmbH</SelectItem>
+                <SelectItem value="UG">UG (haftungsbeschränkt)</SelectItem>
+                <SelectItem value="AG">AG</SelectItem>
+                <SelectItem value="GbR">GbR</SelectItem>
+                <SelectItem value="OHG">OHG</SelectItem>
+                <SelectItem value="KG">KG</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="branche">Branche</Label>
             <Select
-              id="branche"
               value={settings.industry || 'Software Entwicklung'}
-              onChange={(e) => setSettings({ ...settings, industry: e.target.value })}
+              onValueChange={(value) => setSettings({ ...settings, industry: value })}
             >
-              <option value="Software Entwicklung">Software Entwicklung</option>
-              <option value="IT-Beratung">IT-Beratung</option>
-              <option value="Webdesign">Webdesign</option>
+              <SelectTrigger id="branche">
+                <SelectValue placeholder="Branche auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Software Entwicklung">Software Entwicklung</SelectItem>
+                <SelectItem value="IT-Beratung">IT-Beratung</SelectItem>
+                <SelectItem value="Webdesign">Webdesign</SelectItem>
+                <SelectItem value="E-Commerce">E-Commerce</SelectItem>
+                <SelectItem value="Marketing">Marketing</SelectItem>
+                <SelectItem value="Beratung">Beratung</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="mitarbeiter">Mitarbeiterzahl</Label>
             <Select
-              id="mitarbeiter"
               value={settings.employees || 'Nur ich'}
-              onChange={(e) => setSettings({ ...settings, employees: e.target.value })}
+              onValueChange={(value) => setSettings({ ...settings, employees: value })}
             >
-              <option value="Nur ich">Nur ich</option>
-              <option value="2-5">2-5 Mitarbeiter</option>
-              <option value="6-10">6-10 Mitarbeiter</option>
-              <option value="11+">11+ Mitarbeiter</option>
+              <SelectTrigger id="mitarbeiter">
+                <SelectValue placeholder="Mitarbeiterzahl auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Nur ich">Nur ich</SelectItem>
+                <SelectItem value="2-5">2-5 Mitarbeiter</SelectItem>
+                <SelectItem value="6-10">6-10 Mitarbeiter</SelectItem>
+                <SelectItem value="11-20">11-20 Mitarbeiter</SelectItem>
+                <SelectItem value="21+">21+ Mitarbeiter</SelectItem>
+              </SelectContent>
             </Select>
           </div>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Allgemein</h2>
-          
+          <h2 className="text-lg font-semibold">Allgemeine Einstellungen</h2>
+
           <div className="space-y-2">
             <Label htmlFor="language">Sprache</Label>
             <Select
-              id="language"
               value={settings.language}
-              onChange={(e) => setSettings({ ...settings, language: e.target.value })}
+              onValueChange={(value) => setSettings({ ...settings, language: value })}
             >
-              <option value="de">Deutsch</option>
-              <option value="en">Englisch</option>
+              <SelectTrigger id="language">
+                <SelectValue placeholder="Sprache auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="de">Deutsch</SelectItem>
+                <SelectItem value="en">English</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="currency">Währung</Label>
+            <Select
+              value={settings.currency}
+              onValueChange={(value) => setSettings({ ...settings, currency: value })}
+            >
+              <SelectTrigger id="currency">
+                <SelectValue placeholder="Währung auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="EUR">Euro (€)</SelectItem>
+                <SelectItem value="USD">US Dollar ($)</SelectItem>
+                <SelectItem value="GBP">Britisches Pfund (£)</SelectItem>
+                <SelectItem value="CHF">Schweizer Franken (CHF)</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="timezone">Zeitzone</Label>
             <Select
-              id="timezone"
               value={settings.timezone}
-              onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
+              onValueChange={(value) => setSettings({ ...settings, timezone: value })}
             >
-              <option value="Europe/Berlin">Berlin</option>
-              <option value="Europe/London">London</option>
-              <option value="America/New_York">New York</option>
+              <SelectTrigger id="timezone">
+                <SelectValue placeholder="Zeitzone auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Europe/Berlin">Berlin</SelectItem>
+                <SelectItem value="Europe/London">London</SelectItem>
+                <SelectItem value="Europe/Paris">Paris</SelectItem>
+                <SelectItem value="Europe/Zurich">Zürich</SelectItem>
+              </SelectContent>
             </Select>
           </div>
         </div>
@@ -228,19 +280,6 @@ export default function EinstellungenPage() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Rechnungen</h2>
           
-          <div className="space-y-2">
-            <Label htmlFor="currency">Währung</Label>
-            <Select
-              id="currency"
-              value={settings.currency}
-              onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-            >
-              <option value="EUR">Euro (€)</option>
-              <option value="USD">US-Dollar ($)</option>
-              <option value="GBP">Britisches Pfund (£)</option>
-            </Select>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="paymentTermDays">Zahlungsziel (Tage)</Label>
             <Input

@@ -104,9 +104,10 @@ export default function SteuernPage() {
           <select
             value={zeitraum}
             onChange={(e) => setZeitraum(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="Monatlich">Monatlich</option>
             <option value="Vierteljährlich">Vierteljährlich</option>
+            <option value="Monatlich">Monatlich</option>
             <option value="Jährlich">Jährlich</option>
           </select>
         </div>
@@ -115,10 +116,11 @@ export default function SteuernPage() {
           <select
             value={jahr}
             onChange={(e) => setJahr(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <option value="2025">2025</option>
             <option value="2024">2024</option>
             <option value="2023">2023</option>
-            <option value="2022">2022</option>
           </select>
         </div>
       </div>
