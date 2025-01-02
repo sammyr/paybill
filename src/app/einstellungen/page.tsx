@@ -24,8 +24,12 @@ export default function EinstellungenPage() {
   useEffect(() => {
     const loadSettings = async () => {
       const db = getDatabase();
-      const settings = await db.getSettings();
-      setSettings(settings);
+      const loadedSettings = await db.getSettings();
+      // Setze Deutschland als Standardwert, wenn kein Land gesetzt ist
+      setSettings({
+        ...loadedSettings,
+        country: loadedSettings.country || 'Deutschland'
+      });
       setLoading(false);
     };
     loadSettings();
@@ -52,6 +56,10 @@ export default function EinstellungenPage() {
     }
   };
 
+  const handleChange = (field: string, value: string) => {
+    setSettings({ ...settings, [field]: value });
+  };
+
   if (loading) {
     return <div className="p-8">Lade Einstellungen...</div>;
   }
@@ -61,13 +69,13 @@ export default function EinstellungenPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="container mx-auto p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Einstellungen</h1>
         <Button onClick={handleSave}>Speichern</Button>
       </div>
 
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6">
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Firma</h2>
           
@@ -92,6 +100,16 @@ export default function EinstellungenPage() {
               id="taxId"
               value={settings.taxId || ''}
               onChange={(e) => setSettings({ ...settings, taxId: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="vatId">USt.-ID</Label>
+            <Input
+              id="vatId"
+              value={settings.vatId || ''}
+              onChange={(e) => setSettings({ ...settings, vatId: e.target.value })}
+              placeholder="DE123456789"
             />
           </div>
 
@@ -126,11 +144,19 @@ export default function EinstellungenPage() {
 
           <div className="space-y-2">
             <Label htmlFor="country">Land</Label>
-            <Input
-              id="country"
-              value={settings.country || 'Deutschland'}
-              onChange={(e) => setSettings({ ...settings, country: e.target.value })}
-            />
+            <Select
+              value={settings.country}
+              onValueChange={(value) => setSettings({ ...settings, country: value })}
+            >
+              <SelectTrigger id="country">
+                <SelectValue placeholder="Wähle ein Land" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Deutschland">Deutschland</SelectItem>
+                <SelectItem value="Österreich">Österreich</SelectItem>
+                <SelectItem value="Schweiz">Schweiz</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -278,6 +304,42 @@ export default function EinstellungenPage() {
         </div>
 
         <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Kontaktdaten</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefonnummer</Label>
+              <Input
+                type="tel"
+                id="phone"
+                value={settings.phone || ''}
+                onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">E-Mail</Label>
+              <Input
+                type="email"
+                id="email"
+                value={settings.email || ''}
+                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
+              />
+            </div>
+
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="website">Webseite</Label>
+              <Input
+                type="url"
+                id="website"
+                placeholder="https://"
+                value={settings.website || ''}
+                onChange={(e) => setSettings({ ...settings, website: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
           <h2 className="text-lg font-semibold">Rechnungen</h2>
           
           <div className="space-y-2">
@@ -352,6 +414,79 @@ export default function EinstellungenPage() {
             </Select>
           </div>
         </div>
+
+        <div className="space-y-4 mt-6">
+          <h2 className="text-lg font-semibold">Bankverbindung</h2>
+            
+          <div className="space-y-2">
+            <Label htmlFor="accountHolder">Kontoinhaber</Label>
+            <Input
+              id="accountHolder"
+              value={settings.bankDetails?.accountHolder || ''}
+              onChange={(e) => setSettings({
+                ...settings,
+                bankDetails: {
+                  ...settings.bankDetails,
+                  accountHolder: e.target.value
+                }
+              })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="iban">IBAN</Label>
+            <Input
+              id="iban"
+              value={settings.bankDetails?.iban || ''}
+              onChange={(e) => setSettings({
+                ...settings,
+                bankDetails: {
+                  ...settings.bankDetails,
+                  iban: e.target.value.toUpperCase().replace(/\s/g, '')
+                }
+              })}
+              placeholder="DE12 3456 7890 1234 5678 90"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bic">BIC</Label>
+            <Input
+              id="bic"
+              value={settings.bankDetails?.bic || ''}
+              onChange={(e) => setSettings({
+                ...settings,
+                bankDetails: {
+                  ...settings.bankDetails,
+                  bic: e.target.value.toUpperCase().replace(/\s/g, '')
+                }
+              })}
+              placeholder="DEUTDEDBXXX"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bankName">Bank</Label>
+            <Input
+              id="bankName"
+              value={settings.bankDetails?.bankName || ''}
+              onChange={(e) => setSettings({
+                ...settings,
+                bankDetails: {
+                  ...settings.bankDetails,
+                  bankName: e.target.value
+                }
+              })}
+              placeholder="Deutsche Bank"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end mt-8 border-t pt-6">
+        <Button onClick={handleSave} className="min-w-[120px]">
+          Speichern
+        </Button>
       </div>
     </div>
   );

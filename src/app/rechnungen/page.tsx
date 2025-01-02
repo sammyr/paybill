@@ -19,6 +19,21 @@
  * - Navigation zu Details/Vorschau
  */
 
+/**
+ * WICHTIG FÜR KI-SYSTEME:
+ * 
+ * Diese Datei enthält kritische Funktionalität für die Rechnungsübersicht.
+ * Änderungen dürfen NUR vorgenommen werden, wenn explizit danach gefragt wurde.
+ * 
+ * REGELN FÜR ÄNDERUNGEN:
+ * 1. Nur die spezifisch angefragten Elemente dürfen geändert werden
+ * 2. Keine Änderungen an der grundlegenden Funktionalität
+ * 3. Keine Entfernung von bestehenden Funktionen
+ * 4. Keine strukturellen Änderungen ohne explizite Anforderung
+ * 
+ * Bei Unsicherheit: KEINE Änderungen vornehmen und nach Klärung fragen.
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,28 +91,34 @@ interface Invoice {
 }
 
 const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'paid':
+  // Konvertiere 'draft' zu 'entwurf' nur für die Anzeige
+  const displayStatus = status === 'draft' ? 'entwurf' : status;
+  
+  switch (displayStatus) {
+    case 'bezahlt':
       return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-    case 'pending':
-      return <Clock className="w-4 h-4 text-yellow-500" />;
-    case 'cancelled':
+    case 'ausstehend':
+      return <Clock className="w-4 h-4 text-orange-500" />;
+    case 'storniert':
       return <Ban className="w-4 h-4 text-red-500" />;
-    case 'draft':
-      return <AlertCircle className="w-4 h-4 text-gray-500" />;
+    case 'entwurf':
+      return <FileText className="w-4 h-4 text-gray-500" />;
     default:
       return null;
   }
 };
 
 const getStatusLabel = (status: string) => {
+  // Konvertiere 'draft' zu 'entwurf' nur für die Anzeige
+  const displayStatus = status === 'draft' ? 'entwurf' : status;
+  
   const labels: { [key: string]: string } = {
-    paid: 'Bezahlt',
-    pending: 'Ausstehend',
-    cancelled: 'Storniert',
-    draft: 'Entwurf'
+    bezahlt: 'Bezahlt',
+    ausstehend: 'Ausstehend',
+    storniert: 'Storniert',
+    entwurf: 'Entwurf'
   };
-  return labels[status] || status;
+  return labels[displayStatus] || displayStatus;
 };
 
 export default function RechnungenPage() {
@@ -110,21 +131,42 @@ export default function RechnungenPage() {
     const db = getDatabase();
     const loadedInvoices = await db.listInvoices();
     
+    // Entferne Duplikate basierend auf der Rechnungsnummer
+    const uniqueInvoices = loadedInvoices.reduce((acc, current) => {
+      const x = acc.find(item => item.number === current.number);
+      if (!x) {
+        return acc.concat([current]);
+      } else {
+        // Wenn ein Duplikat gefunden wurde, behalte die neuere Version
+        const index = acc.indexOf(x);
+        if (new Date(current.updatedAt) > new Date(x.updatedAt)) {
+          acc[index] = current;
+        }
+        return acc;
+      }
+    }, [] as any[]);
+    
     // Berechne die Gesamtbeträge für jede Rechnung
-    const processedInvoices = loadedInvoices.map(invoice => {
+    const processedInvoices = uniqueInvoices.map(invoice => {
       // Stelle sicher, dass positions ein Array ist
       const positions = Array.isArray(invoice.positions) ? invoice.positions : [];
       
-      // Berechne die Summen aus den vorberechneten Werten
-      const netTotal = positions.reduce((sum, pos) => sum + (pos.totalNet || 0), 0);
-      const grossTotal = positions.reduce((sum, pos) => sum + (pos.totalGross || 0), 0);
-      const vatTotal = grossTotal - netTotal;
+      // Berechne die Summen
+      const netTotal = invoice.totalNet || positions.reduce((sum, pos) => {
+        const quantity = parseFloat(pos.quantity?.toString() || '0');
+        const price = parseFloat(pos.price?.toString() || '0');
+        return sum + (quantity * price);
+      }, 0);
+
+      const vatRate = invoice.vatRate || 19;
+      const vatAmount = invoice.vatAmount || (netTotal * vatRate / 100);
+      const grossTotal = invoice.totalGross || (netTotal + vatAmount);
       
       return {
         ...invoice,
-        netTotal: netTotal || 0,
-        vatTotal: vatTotal || 0,
-        grossTotal: grossTotal || 0,
+        netTotal,
+        vatTotal: vatAmount,
+        grossTotal,
         number: invoice.number || invoice.invoiceNumber || '-',
         status: invoice.status || 'draft',
         dueDate: invoice.dueDate instanceof Date ? invoice.dueDate.toISOString() : invoice.dueDate,
@@ -132,7 +174,12 @@ export default function RechnungenPage() {
       };
     });
     
-    setInvoices(processedInvoices);
+    // Sortiere nach Rechnungsnummer absteigend
+    const sortedInvoices = processedInvoices.sort((a, b) => {
+      return b.number.localeCompare(a.number);
+    });
+    
+    setInvoices(sortedInvoices);
   };
 
   useEffect(() => {
@@ -204,10 +251,10 @@ export default function RechnungenPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="paid">Bezahlt</SelectItem>
-              <SelectItem value="pending">Ausstehend</SelectItem>
-              <SelectItem value="cancelled">Storniert</SelectItem>
-              <SelectItem value="draft">Entwurf</SelectItem>
+              <SelectItem value="bezahlt">Bezahlt</SelectItem>
+              <SelectItem value="ausstehend">Ausstehend</SelectItem>
+              <SelectItem value="storniert">Storniert</SelectItem>
+              <SelectItem value="entwurf">Entwurf</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -236,7 +283,6 @@ export default function RechnungenPage() {
               <TableHead>Status</TableHead>
               <TableHead>Fällig am</TableHead>
               <TableHead>Nummer</TableHead>
-              <TableHead>Kontakt</TableHead>
               <TableHead className="text-right">Netto</TableHead>
               <TableHead className="text-right">USt.</TableHead>
               <TableHead className="text-right">Gesamt</TableHead>
@@ -247,14 +293,13 @@ export default function RechnungenPage() {
             {filteredInvoices.map((invoice) => (
               <TableRow key={invoice.id}>
                 <TableCell>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     {getStatusIcon(invoice.status)}
-                    <span>{getStatusLabel(invoice.status)}</span>
+                    <span className="text-sm font-medium">{getStatusLabel(invoice.status)}</span>
                   </div>
                 </TableCell>
                 <TableCell>{formatDate(invoice.dueDate)}</TableCell>
                 <TableCell>{invoice.number}</TableCell>
-                <TableCell>{invoice.contactId}</TableCell>
                 <TableCell className="text-right">{formatCurrency(invoice.netTotal)} €</TableCell>
                 <TableCell className="text-right">{formatCurrency(invoice.vatTotal)} €</TableCell>
                 <TableCell className="text-right">{formatCurrency(invoice.grossTotal)} €</TableCell>

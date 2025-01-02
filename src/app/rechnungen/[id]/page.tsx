@@ -8,10 +8,10 @@
 
 import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { InvoicePDF } from '@/components/invoice/InvoicePDF';
 import { Button } from '@/components/ui/button';
 import { getDatabase } from '@/lib/db';
 import { Invoice, Contact } from '@/lib/db/interfaces';
+import { useToast } from '@/components/ui/use-toast';
 
 interface InvoicePageProps {
   params: Promise<{
@@ -21,26 +21,49 @@ interface InvoicePageProps {
 
 export default function InvoicePage({ params }: InvoicePageProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [contact, setContact] = useState<Contact | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState<any>(null);
+  const [positions, setPositions] = useState<any[]>([]);
   const { id } = use(params);
 
   useEffect(() => {
     const loadInvoiceData = async () => {
+      if (!id) return;
+
       try {
-        console.log('Loading invoice with ID:', id);
-        const db = getDatabase();
+        setIsLoading(true);
         
-        // Lade Rechnung
-        const loadedInvoice = await db.getInvoice(id);
-        console.log('Loaded invoice:', loadedInvoice);
-        if (!loadedInvoice) {
-          setError('Rechnung nicht gefunden');
+        // Prüfe zuerst, ob es ein Entwurf ist
+        const draftData = localStorage.getItem(`invoice_draft_${id}`);
+        if (draftData) {
+          const parsedDraft = JSON.parse(draftData);
+          setFormData(parsedDraft);
+          setPositions(parsedDraft.positions || []);
           return;
         }
+
+        // Wenn kein Entwurf, versuche aus der Datenbank zu laden
+        const db = getDatabase();
+        const loadedInvoice = await db.getInvoice(id);
+        
+        if (!loadedInvoice) {
+          toast({
+            variant: "destructive",
+            title: "Fehler beim Laden",
+            description: `Rechnung mit ID ${id} wurde nicht gefunden`
+          });
+          router.push('/rechnungen');
+          return;
+        }
+
         setInvoice(loadedInvoice);
+        setFormData(loadedInvoice);
+        setPositions(loadedInvoice.positions || []);
 
         // Lade Einstellungen
         const loadedSettings = await db.getSettings();
@@ -56,13 +79,22 @@ export default function InvoicePage({ params }: InvoicePageProps) {
             setContact(loadedContact);
           }
         }
+
       } catch (error) {
-        console.error('Error loading invoice data:', error);
-        setError(error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten');
+        console.error('Fehler beim Laden der Rechnung:', error);
+        toast({
+          variant: "destructive",
+          title: "Fehler beim Laden",
+          description: error instanceof Error ? error.message : 'Fehler beim Laden der Rechnung'
+        });
+        router.push('/rechnungen');
+      } finally {
+        setIsLoading(false);
       }
     };
+
     loadInvoiceData();
-  }, [id]);
+  }, [id, router]);
 
   if (error) {
     return (
@@ -84,7 +116,7 @@ export default function InvoicePage({ params }: InvoicePageProps) {
     );
   }
 
-  if (!invoice || !settings) {
+  if (isLoading || !invoice || !settings) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow p-6">

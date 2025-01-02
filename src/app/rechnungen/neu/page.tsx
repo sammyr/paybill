@@ -19,7 +19,6 @@ import { Switch } from '@/components/ui/switch';
 import { getDatabase } from '@/lib/db';
 import { Contact, Invoice } from '@/lib/db/interfaces';
 import { useToast } from '@/components/ui/use-toast';
-import { useInvoiceFormStorage } from '@/hooks/useInvoiceFormStorage';
 
 // Hilfsfunktion zur Generierung einer einfachen UUID
 function generateId() {
@@ -68,61 +67,95 @@ interface FormData {
   };
 }
 
+const defaultFormData: FormData = {
+  contactId: '',
+  recipient: {
+    name: '',
+    street: '',
+    zip: '',
+    city: '',
+    country: 'Deutschland',
+    email: '',
+    phone: '',
+    taxId: ''
+  },
+  positions: [
+    {
+      description: 'Webentwicklung - Frontend',
+      quantity: 20,
+      price: 90,
+      vat: 19,
+      amount: 1800
+    },
+    {
+      description: 'UI/UX Design',
+      quantity: 15,
+      price: 85,
+      vat: 19,
+      amount: 1275
+    },
+    {
+      description: 'Projektmanagement',
+      quantity: 8,
+      price: 95,
+      vat: 19,
+      amount: 760
+    }
+  ],
+  date: new Date().toISOString().split('T')[0],
+  dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  deliveryDate: new Date().toISOString().split('T')[0],
+  invoiceNumber: `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+  referenceNumber: 'PROJ-2024-001',
+  notes: 'Vielen Dank für Ihren Auftrag!\n\nBitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten angegebene Konto.',
+  paymentTerms: '14 Tage netto',
+  bankDetails: {
+    accountHolder: 'Max Mustermann',
+    iban: 'DE89 3704 0044 0532 0130 00',
+    bic: 'COBADEFFXXX',
+    bankName: 'Commerzbank'
+  }
+};
+
+const useInvoiceFormStorage = () => {
+  const getInitialState = (): FormData => {
+    if (typeof window === 'undefined') return defaultFormData;
+    
+    try {
+      const savedState = localStorage.getItem('invoiceFormData');
+      if (!savedState) return defaultFormData;
+      
+      const parsedState = JSON.parse(savedState);
+      return {
+        ...defaultFormData,
+        ...parsedState
+      };
+    } catch (error) {
+      console.error('Fehler beim Laden des Formularzustands:', error);
+      return defaultFormData;
+    }
+  };
+
+  const [formData, setFormData] = useState<FormData>(getInitialState);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('invoiceFormData', JSON.stringify(formData));
+    } catch (error) {
+      console.error('Fehler beim Speichern des Formularzustands:', error);
+    }
+  }, [formData]);
+
+  return [formData, setFormData] as const;
+};
+
 export default function NeueRechnungPage() {
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [paymentDays, setPaymentDays] = useState(14);
   const [isErechnung, setIsErechnung] = useState(false);
   const { toast } = useToast();
-  const [formData, updateFormData, clearFormData] = useInvoiceFormStorage({
-    contactId: '',
-    recipient: {
-      name: '',
-      street: '',
-      zip: '',
-      city: '',
-      country: 'Deutschland',
-      email: '',
-      phone: '',
-      taxId: ''
-    },
-    positions: [
-      {
-        description: 'Webentwicklung - Frontend',
-        quantity: 20,
-        price: 90,
-        vat: 19,
-        amount: 1800
-      },
-      {
-        description: 'UI/UX Design',
-        quantity: 15,
-        price: 85,
-        vat: 19,
-        amount: 1275
-      },
-      {
-        description: 'Projektmanagement',
-        quantity: 8,
-        price: 95,
-        vat: 19,
-        amount: 760
-      }
-    ],
-    date: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    deliveryDate: new Date().toISOString().split('T')[0],
-    invoiceNumber: `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-    referenceNumber: 'PROJ-2024-001',
-    notes: 'Vielen Dank für Ihren Auftrag!\n\nBitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten angegebene Konto.',
-    paymentTerms: '14 Tage netto',
-    bankDetails: {
-      accountHolder: 'Max Mustermann',
-      iban: 'DE89 3704 0044 0532 0130 00',
-      bic: 'COBADEFFXXX',
-      bankName: 'Commerzbank'
-    }
-  });
+  const [formData, updateFormData, clearFormData] = useInvoiceFormStorage();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -205,34 +238,32 @@ export default function NeueRechnungPage() {
     }
   };
 
-  const handlePositionChange = (index: number, field: keyof InvoicePosition, value: string) => {
-    const positions = [...(formData.positions || [])];
+  const handlePositionChange = (index: number, field: string, value: string) => {
+    const positions = [...formData.positions];
+    const position = { ...positions[index] };
+
     if (field === 'price') {
-      // Entferne alle Nicht-Zahlen außer Punkt und Komma
-      const sanitizedValue = value.replace(/[^\d.,]/g, '');
-      // Ersetze Komma durch Punkt für die interne Verarbeitung
-      const numberValue = sanitizedValue.replace(',', '.');
-      // Begrenze auf 2 Dezimalstellen
-      const formattedValue = Number(numberValue).toFixed(2);
-      positions[index][field] = formattedValue;
+      // Entferne zuerst alle Tausendertrennzeichen
+      const cleanValue = value.replace(/\./g, '');
+      // Ersetze Komma durch Punkt für die Berechnung
+      const numericValue = cleanValue.replace(',', '.');
+      // Parse als Nummer
+      position[field] = parseFloat(numericValue) || 0;
+    } else if (field === 'quantity') {
+      position[field] = parseInt(value) || 0;
     } else {
-      positions[index][field] = value;
+      position[field] = value;
     }
 
-    if (field === 'quantity' || field === 'price') {
-      const quantity = Number(positions[index].quantity) || 0;
-      const price = Number(positions[index].price) || 0;
-      positions[index].amount = quantity * price;
-    }
+    // Berechne den Gesamtbetrag für die Position
+    position.amount = position.quantity * position.price;
 
-    updateFormData({
-      ...formData,
-      positions
-    });
+    positions[index] = position;
+    updateFormData({ ...formData, positions });
   };
 
   const addPosition = () => {
-    const newPositions = [...(formData.positions || []), {
+    const newPositions = [...formData.positions, {
       description: '',
       quantity: 1,
       price: 0,
@@ -246,7 +277,7 @@ export default function NeueRechnungPage() {
   };
 
   const removePosition = (index: number) => {
-    const positions = [...(formData.positions || [])];
+    const positions = [...formData.positions];
     positions.splice(index, 1);
     updateFormData({
       ...formData,
@@ -254,24 +285,70 @@ export default function NeueRechnungPage() {
     });
   };
 
-  const calculateTotals = () => {
-    const positions = formData.positions || [];
-    let netTotal = 0;
-    let vatTotal = 0;
+  const calculateTotals = (positions: any[], discount?: { type: 'percentage' | 'fixed', value: number }) => {
+    // Netto-Summe berechnen
+    const netTotal = positions.reduce((sum, pos) => sum + (pos.quantity * pos.price), 0);
 
-    positions.forEach(pos => {
-      const amount = Number(pos.amount) || 0;
-      const vat = Number(pos.vat) || 0;
-      netTotal += amount;
-      vatTotal += amount * (vat / 100);
-    });
+    // Rabatt berechnen
+    let discountAmount = 0;
+    if (discount) {
+      if (discount.type === 'percentage') {
+        discountAmount = netTotal * (discount.value / 100);
+      } else {
+        discountAmount = discount.value;
+      }
+    }
+
+    // Netto nach Rabatt
+    const netAfterDiscount = netTotal - discountAmount;
+
+    // MwSt pro Satz berechnen
+    const vatAmounts = positions.reduce((acc, pos) => {
+      const positionNet = (pos.quantity * pos.price);
+      // Anteiligen Rabatt für diese Position berechnen
+      const positionDiscountRatio = positionNet / netTotal;
+      const positionDiscount = discountAmount * positionDiscountRatio;
+      const positionNetAfterDiscount = positionNet - positionDiscount;
+      
+      const vatRate = pos.vat;
+      if (!acc[vatRate]) {
+        acc[vatRate] = 0;
+      }
+      acc[vatRate] += positionNetAfterDiscount * (vatRate / 100);
+      return acc;
+    }, {});
+
+    // Gesamte MwSt
+    const totalVat = Object.values(vatAmounts).reduce((sum: number, amount: number) => sum + amount, 0);
+
+    // Brutto-Summe
+    const grossTotal = netAfterDiscount + totalVat;
 
     return {
       netTotal,
-      vatTotal,
-      grossTotal: netTotal + vatTotal
+      discountAmount,
+      netAfterDiscount,
+      vatAmounts,
+      totalVat,
+      grossTotal
     };
   };
+
+  const [totals, setTotals] = useState({
+    netTotal: 0,
+    discountAmount: 0,
+    netAfterDiscount: 0,
+    vatAmounts: {},
+    totalVat: 0,
+    grossTotal: 0
+  });
+
+  useEffect(() => {
+    if (formData.positions) {
+      const totals = calculateTotals(formData.positions, formData.discount);
+      setTotals(totals);
+    }
+  }, [formData.positions, formData.discount]);
 
   const calculatePositionAmount = (position: InvoicePosition) => {
     if (!position.quantity || !position.price) return 0;
@@ -282,34 +359,12 @@ export default function NeueRechnungPage() {
   const calculateDiscount = () => {
     if (!formData.discount) return 0;
     
-    const subtotal = calculateTotals().netTotal;
+    const subtotal = calculateTotals(formData.positions, formData.discount).netTotal;
     if (formData.discount.type === 'percentage') {
       return (subtotal * formData.discount.value) / 100;
     }
     return formData.discount.value;
   };
-
-  const totals = useMemo(() => {
-    const netTotal = formData.positions.reduce((sum, pos) => {
-      return sum + (Number(pos.quantity) || 0) * (Number(pos.price) || 0);
-    }, 0);
-
-    const discount = calculateDiscount();
-    const discountedTotal = netTotal - discount;
-    
-    const vatAmount = formData.positions.reduce((sum, pos) => {
-      const positionNet = (Number(pos.quantity) || 0) * (Number(pos.price) || 0);
-      return sum + (positionNet * (Number(pos.vat) || 0)) / 100;
-    }, 0);
-
-    return {
-      netTotal,
-      discount,
-      discountedTotal,
-      vatAmount,
-      grossTotal: discountedTotal + vatAmount
-    };
-  }, [formData.positions, formData.discount]);
 
   const handleAddDiscount = () => {
     setShowDiscountDialog(true);
@@ -351,31 +406,6 @@ export default function NeueRechnungPage() {
       }
     });
     setShowContactDialog(false);
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-
-    try {
-      const response = await fetch('/api/invoices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (!response.ok) {
-        throw new Error('Fehler beim Speichern der Rechnung');
-      }
-
-      const result = await response.json();
-      // Nach erfolgreicher Speicherung zur Preview-Seite navigieren
-      router.push(`/rechnungen/${result.id}/preview`);
-    } catch (error) {
-      console.error('Fehler:', error);
-      // Hier könnte eine Fehlerbehandlung erfolgen
-    }
   };
 
   const validateForm = () => {
@@ -423,7 +453,98 @@ export default function NeueRechnungPage() {
       });
     }
 
-    return errors;
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    console.log('Validiere Formular...');
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      console.log('Validierungsfehler:', errors);
+      setValidationErrors(errors);
+      toast({
+        title: "Fehler",
+        description: "Bitte füllen Sie alle erforderlichen Felder aus.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+
+    try {
+      console.log('Speichere Rechnung...');
+      const db = getDatabase();
+      
+      // Berechne Gesamtbeträge
+      const netTotal = formData.positions.reduce((sum, pos) => sum + (Number(pos.quantity) * Number(pos.price)), 0);
+      const vatAmount = netTotal * 0.19;
+      
+      // Berechne Rabatt wenn vorhanden
+      let discountAmount = 0;
+      if (formData.discount) {
+        if (formData.discount.type === 'percentage') {
+          discountAmount = netTotal * (Number(formData.discount.value) / 100);
+        } else {
+          discountAmount = Number(formData.discount.value);
+        }
+      }
+      
+      const discountedNet = netTotal - discountAmount;
+      const vatAfterDiscount = discountedNet * 0.19;
+      const grossTotal = discountedNet + vatAfterDiscount;
+
+      // Erstelle neue Rechnung
+      const invoice: Omit<Invoice, 'id' | 'number' | 'createdAt' | 'updatedAt'> = {
+        date: formData.date ? new Date(formData.date) : new Date(),
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + paymentDays * 24 * 60 * 60 * 1000),
+        contactId: formData.contactId,
+        recipient: {
+          name: formData.recipient.name,
+          street: formData.recipient.street,
+          zip: formData.recipient.zip,
+          city: formData.recipient.city,
+          country: formData.recipient.country || 'Deutschland',
+          email: formData.recipient.email,
+          phone: formData.recipient.phone,
+          taxId: formData.recipient.taxId
+        },
+        positions: formData.positions?.map(pos => ({
+          id: generateId(),
+          description: pos.description,
+          quantity: Number(pos.quantity),
+          unitPrice: Number(pos.price),
+          taxRate: Number(pos.vat),
+          amount: Number(pos.quantity) * Number(pos.price)
+        })) || [],
+        notes: formData.notes,
+        status: 'draft',
+        // Rabatt-Informationen hinzufügen
+        discount: discountAmount,
+        discountType: formData.discount?.type,
+        discountValue: formData.discount?.value,
+        // Gesamtbeträge
+        totalNet: netTotal,
+        totalGross: grossTotal,
+        vatAmount: vatAfterDiscount,
+        vatRate: 19
+      };
+
+      const savedInvoice = await db.createInvoice(invoice);
+      console.log('Rechnung gespeichert:', savedInvoice);
+
+      // Navigiere zur Preview-Seite
+      router.push(`/rechnungen/${savedInvoice.id}/preview`);
+      
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Speichern der Rechnung. Bitte versuchen Sie es erneut.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
   };
 
   const handleContactChange = async (contactId: string) => {
@@ -487,6 +608,61 @@ export default function NeueRechnungPage() {
     }
   };
 
+  const handlePreview = () => {
+    // Hole aktuelle Formulardaten
+    const currentFormData = formData;
+    
+    // Generiere eine temporäre ID für den Entwurf
+    const draftId = 'draft_temp';
+    
+    // Berechne die Gesamtbeträge
+    const totals = calculateTotals(formData.positions, formData.discount);
+    
+    // Bereite die Positionen mit Preisen vor
+    const positionsWithPrices = formData.positions.map(pos => ({
+      ...pos,
+      quantity: parseFloat(pos.quantity?.toString() || '0'),
+      unitPrice: parseFloat(pos.unitPrice?.toString() || '0'),
+      totalNet: parseFloat(pos.quantity?.toString() || '0') * parseFloat(pos.unitPrice?.toString() || '0')
+    }));
+    
+    // Bereite die Rechnungsdaten vor
+    const invoiceData = {
+      ...currentFormData,
+      id: draftId,
+      positions: positionsWithPrices,
+      totalNet: totals.netTotal,
+      totalGross: totals.grossTotal,
+      vatAmount: totals.totalVat,
+      vatRate: 19,
+      status: 'entwurf',
+      date: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() // 14 Tage später
+    };
+    
+    // Speichere den Entwurf
+    localStorage.setItem(`invoice_draft_${draftId}`, JSON.stringify(invoiceData));
+    
+    // Navigiere zur Vorschau
+    router.push(`/rechnungen/${draftId}/preview`);
+  };
+
+  useEffect(() => {
+    // Prüfe, ob es eine zuletzt bearbeitete Rechnung gibt
+    const lastEditedInvoice = localStorage.getItem('lastEditedInvoice');
+    if (lastEditedInvoice) {
+      const savedFormData = localStorage.getItem(`formData_${lastEditedInvoice}`);
+      if (savedFormData) {
+        try {
+          const parsedFormData = JSON.parse(savedFormData);
+          updateFormData(parsedFormData);
+        } catch (error) {
+          console.error('Fehler beim Laden der gespeicherten Rechnung:', error);
+        }
+      }
+    }
+  }, []);
+
   if (!isClient) {
     return <div>Lade...</div>;
   }
@@ -536,7 +712,7 @@ export default function NeueRechnungPage() {
             variant="default" 
             size="default"
             className="bg-[#FF5A1F] hover:bg-[#FF5A1F]/90 rounded-lg"
-            onClick={handleSubmit}
+            onClick={handlePreview}
           >
             Rechnung ansehen
           </Button>
@@ -837,8 +1013,15 @@ export default function NeueRechnungPage() {
                       <input
                         type="text"
                         inputMode="decimal"
-                        value={position.price ? new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(position.price)) : ''}
-                        onChange={(e) => handlePositionChange(index, 'price', e.target.value)}
+                        value={position.price ? position.price.toLocaleString('de-DE', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2,
+                          useGrouping: false // Deaktiviert Tausendertrennzeichen
+                        }) : ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          handlePositionChange(index, 'price', value);
+                        }}
                         className="w-full text-right pr-6 p-2 border rounded"
                         placeholder="0,00"
                       />
@@ -909,28 +1092,36 @@ export default function NeueRechnungPage() {
         )}
       </div>
 
-      <div className="mt-8">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-600">Gesamtsumme Netto:</span>
-          <span className="font-medium pr-[42px]">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</span>
-        </div>
-        {formData.discount && (
-          <div className="flex justify-between items-center mt-2">
-            <span className="text-gray-600">
-              Rabatt {formData.discount.type === 'percentage' ? `(${formData.discount.value}%)` : ''}:
-            </span>
-            <span className="font-medium text-red-600 pr-[42px]">
-              -{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.discount)}
-            </span>
+      {/* 
+        WICHTIG: Diese Komponente wurde am 02.01.2025 finalisiert.
+        Bitte keine Änderungen vornehmen, es sei denn, es wird explizit danach gefragt.
+        Änderungen könnten die Darstellung der Rechnung und die Betragsberechnungen beeinflussen.
+      */}
+      <div className="mt-8 text-right">
+        <div className="space-y-2 w-full ">
+          <div className="flex justify-between items-center">
+            <span>Gesamtsumme Netto:</span>
+            <span className="inline-block w-32 text-right ">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</span>
           </div>
-        )}
-        <div className="flex justify-between items-center mt-2">
-          <span className="text-gray-600">Umsatzsteuer {totals.vatAmount}%:</span>
-          <span className="font-medium pr-[42px]">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.vatAmount)}</span>
-        </div>
-        <div className="flex justify-between items-center mt-2">
-          <span className="font-semibold">Gesamt:</span>
-          <span className="font-semibold pr-[42px]">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</span>
+          
+          {formData.discount && (
+            <div className="flex justify-between items-center text-red-600">
+              <span>Rabatt {formData.discount.type === 'percentage' ? `(${formData.discount.value}%)` : ''}:</span>
+              <span className="inline-block w-32 text-right ">-{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.discountAmount)}</span>
+            </div>
+          )}
+          
+          {Object.keys(totals.vatAmounts).map(vatRate => (
+            <div key={vatRate} className="flex justify-between items-center">
+              <span>MwSt {vatRate}%:</span>
+              <span className="inline-block w-32 text-right ">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.vatAmounts[vatRate])}</span>
+            </div>
+          ))}
+          
+          <div className="flex justify-between items-center font-bold border-t pt-2">
+            <span>Gesamt:</span>
+            <span className="inline-block w-32 text-right ">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</span>
+          </div>
         </div>
       </div>
 
@@ -1033,7 +1224,7 @@ const calculatePositionAmount = (position: InvoicePosition) => {
 };
 
 const addPosition = () => {
-  const newPositions = [...(formData.positions || []), {
+  const newPositions = [...formData.positions, {
     description: '',
     quantity: 1,
     price: 0,

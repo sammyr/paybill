@@ -160,66 +160,22 @@ class MemoryDatabase implements DatabaseInterface {
   }
 
   // Invoices
-  async createInvoice(invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice> {
-    // Generiere eine neue Rechnungsnummer
-    const number = this.getNextInvoiceNumber();
-
-    // Berechne die Summen für jede Position
-    const positions = invoice.positions.map(pos => {
-      const quantity = Number(pos.quantity) || 0;
-      const unitPrice = Number(pos.unitPrice) || 0;
-      const taxRate = Number(pos.taxRate) || 0;
-      
-      const totalNet = quantity * unitPrice;
-      const totalGross = totalNet * (1 + taxRate / 100);
-      
-      return {
-        ...pos,
-        id: pos.id || crypto.randomUUID(),
-        quantity,
-        unitPrice,
-        taxRate,
-        totalNet,
-        totalGross
-      };
-    });
-
-    // Berechne die Gesamtsummen
-    const netTotal = positions.reduce((sum, pos) => sum + pos.totalNet, 0);
-    const grossTotal = positions.reduce((sum, pos) => sum + pos.totalGross, 0);
-    const vatTotal = grossTotal - netTotal;
-
-    // Stelle sicher, dass alle erforderlichen Felder vorhanden sind
-    const newInvoice: Invoice = {
-      ...invoice,
+  async createInvoice(data: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice> {
+    const invoice: Invoice = {
       id: crypto.randomUUID(),
-      number: number,
-      date: invoice.date || new Date(),
-      dueDate: invoice.dueDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      recipient: {
-        name: invoice.recipient.name || '',
-        street: invoice.recipient.street || '',
-        zip: invoice.recipient.zip || '',
-        city: invoice.recipient.city || '',
-        country: invoice.recipient.country || 'Deutschland',
-        email: invoice.recipient.email || '',
-        phone: invoice.recipient.phone || '',
-        taxId: invoice.recipient.taxId || ''
-      },
-      contactId: invoice.contactId,
-      positions: positions,
-      netTotal,
-      vatTotal,
-      grossTotal,
-      notes: invoice.notes || '',
-      status: invoice.status || 'draft',
+      ...data,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      totalNet: data.totalNet || 0,
+      totalGross: data.totalGross || 0,
+      vatAmount: data.vatAmount || 0,
+      vatAmounts: data.vatAmounts || {},
+      notes: data.notes || ''
     };
 
-    this.invoices.push(newInvoice);
+    this.invoices.push(invoice);
     this.saveInvoices();
-    return newInvoice;
+    return invoice;
   }
 
   async getInvoice(id: string): Promise<Invoice> {
@@ -238,47 +194,11 @@ class MemoryDatabase implements DatabaseInterface {
     const index = this.invoices.findIndex(i => i.id === id);
     if (index === -1) throw new Error('Invoice not found');
 
-    // Wenn Positionen aktualisiert werden, berechne die Summen neu
-    let positions = this.invoices[index].positions;
-    let netTotal = this.invoices[index].netTotal;
-    let grossTotal = this.invoices[index].grossTotal;
-    let vatTotal = this.invoices[index].vatTotal;
-
-    if (invoice.positions) {
-      positions = invoice.positions.map(pos => {
-        const quantity = Number(pos.quantity) || 0;
-        const unitPrice = Number(pos.unitPrice) || 0;
-        const taxRate = Number(pos.taxRate) || 0;
-        
-        const totalNet = quantity * unitPrice;
-        const totalGross = totalNet * (1 + taxRate / 100);
-        
-        return {
-          ...pos,
-          id: pos.id || crypto.randomUUID(),
-          quantity,
-          unitPrice,
-          taxRate,
-          totalNet,
-          totalGross
-        };
-      });
-
-      netTotal = positions.reduce((sum, pos) => sum + pos.totalNet, 0);
-      grossTotal = positions.reduce((sum, pos) => sum + pos.totalGross, 0);
-      vatTotal = grossTotal - netTotal;
-    }
-
     const updatedInvoice = {
       ...this.invoices[index],
       ...invoice,
-      positions,
-      netTotal,
-      vatTotal,
-      grossTotal,
       updatedAt: new Date(),
     };
-
     this.invoices[index] = updatedInvoice;
     this.saveInvoices();
     return updatedInvoice;

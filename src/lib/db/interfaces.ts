@@ -38,6 +38,7 @@ export interface Invoice {
   number: string;
   date: Date;
   dueDate: Date;
+  status: 'entwurf' | 'ausstehend' | 'bezahlt' | 'storniert';
   recipient: {
     name: string;
     street?: string;
@@ -49,8 +50,14 @@ export interface Invoice {
     taxId?: string;
   };
   positions: InvoiceItem[];
+  totalNet: number;
+  totalGross: number;
+  vatAmount?: number;
+  vatAmounts?: { [key: string]: number };
+  discount?: number;
+  discountType?: 'percentage' | 'fixed';
+  discountValue?: number;
   notes?: string;
-  status: 'draft' | 'sent' | 'paid' | 'cancelled';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,17 +73,59 @@ export interface InvoiceItem {
   totalGross: number;
 }
 
-export interface Settings {
+export interface Offer {
   id: string;
-  language: string;
-  timezone: string;
-  currency: string;
-  paymentTermDays: number;
-  companyName?: string;
-  taxId?: string;
-  address?: Address;
-  logo?: string; // Base64-kodiertes Bild
+  number: string;
+  date: Date;
+  validUntil: Date;
+  status: 'entwurf' | 'offen' | 'angenommen' | 'abgelehnt' | 'abgelaufen';
+  recipient: {
+    name: string;
+    street?: string;
+    zip?: string;
+    city?: string;
+    country?: string;
+    email?: string;
+    phone?: string;
+    taxId?: string;
+  };
+  positions: OfferItem[];
+  totalNet: number;
+  totalGross: number;
+  vatAmount: number;
+  vatRate: number;
+  createdAt: Date;
   updatedAt: Date;
+}
+
+export interface OfferItem {
+  id: string;
+  offerId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  totalNet: number;
+  totalGross: number;
+}
+
+export interface Settings {
+  id?: string;
+  companyName?: string;
+  street?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  vatId?: string;
+  taxId?: string;
+  bankDetails?: {
+    bankName?: string;
+    iban?: string;
+    bic?: string;
+  };
 }
 
 export interface Tax {
@@ -108,6 +157,14 @@ export interface DatabaseInterface {
   updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice>;
   deleteInvoice(id: string): Promise<void>;
   listInvoices(): Promise<Invoice[]>;
+
+  // Offers
+  createOffer(offer: Omit<Offer, 'id' | 'createdAt' | 'updatedAt'>): Promise<Offer>;
+  getOffer(id: string): Promise<Offer | null>;
+  updateOffer(id: string, offer: Partial<Offer>): Promise<Offer>;
+  deleteOffer(id: string): Promise<void>;
+  listOffers(): Promise<Offer[]>;
+  resetOffers(): Promise<void>;
 
   // Settings
   getSettings(): Promise<Settings>;

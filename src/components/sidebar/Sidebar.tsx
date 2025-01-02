@@ -11,7 +11,8 @@ import {
   Settings,
   CircleDot,
   Menu,
-  X
+  X,
+  FileCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/logo';
@@ -35,13 +36,13 @@ interface MenuItem {
 const mainMenuItems: MenuItem[] = [
   { name: 'Übersicht', path: '/', icon: LayoutDashboard },
   { name: 'Rechnungen', path: '/rechnungen', icon: FileText },
+  { name: 'Angebote', path: '/angebote', icon: FileCheck },
   { name: 'Steuern', path: '/steuern', icon: Calculator },
   { name: 'Kontakte', path: '/kontakte', icon: Users },
-];
-
-const bottomMenuItems: MenuItem[] = [
   { name: 'Einstellungen', path: '/einstellungen', icon: Settings },
 ];
+
+const bottomMenuItems: MenuItem[] = [];
 
 export function Sidebar({ className, items }: SidebarProps) {
   const pathname = usePathname();
