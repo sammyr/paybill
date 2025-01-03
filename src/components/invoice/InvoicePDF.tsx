@@ -286,7 +286,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                   <div>
                     USt.-ID: {settings.vatId}<br />
                     Steuer-Nr.: {settings.taxId}<br />
-                    Inhaber/-in: {settings.companyName}
+                    Inhaber/-in: {settings.owner}
                   </div>
                   <div>
                     {settings.bankDetails?.bankName || 'Berliner Sparkasse'}<br />
