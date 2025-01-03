@@ -555,7 +555,7 @@ export default function NeueRechnungPage() {
           street: '',
           zip: '',
           city: '',
-          country: 'Deutschland',
+          country: 'DE',
           email: '',
           phone: '',
           taxId: ''
@@ -578,14 +578,11 @@ export default function NeueRechnungPage() {
         // Extrahiere Straße, PLZ und Stadt aus der Adresse
         const addressMatch = contact.address?.match(/^(.*?),\s*(\d{5})\s+(.*)$/);
         
-        let street = '';
-        let zip = '';
-        let city = '';
+        let street = contact.street || '';
+        let zip = contact.zip || '';
+        let city = contact.city || '';
+        let country = contact.country || 'DE';
         
-        if (addressMatch) {
-          [, street, zip, city] = addressMatch;
-        }
-
         const updatedFormData = {
           ...formData,
           contactId: contact.id,
@@ -594,7 +591,7 @@ export default function NeueRechnungPage() {
             street: street,
             zip: zip,
             city: city,
-            country: 'Deutschland',
+            country: country,
             email: contact.email || '',
             phone: contact.phone || '',
             taxId: contact.taxId || ''
@@ -605,6 +602,11 @@ export default function NeueRechnungPage() {
       }
     } catch (error) {
       console.error('Fehler beim Laden des Kontakts:', error);
+      toast({
+        title: "Fehler",
+        description: "Der Kontakt konnte nicht geladen werden.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -731,6 +733,28 @@ export default function NeueRechnungPage() {
                 Kontakt
                 <span className="text-red-500 ml-1">*</span>
               </Label>
+  
+              {validationErrors.recipient && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.recipient}</p>
+              )}
+            </div>
+
+            {/* 
+              WICHTIG: Dieser Bereich enthält kritische Kontaktinformationen.
+              Die folgenden Felder und deren Funktionalität dürfen NICHT verändert werden,
+              es sei denn, dies wurde explizit über Cascade angefordert:
+              - Kontaktauswahl (Select)
+              - Straße (Input)
+              - PLZ (Input)
+              - Stadt (Input)
+              - Land (Select)
+              
+              Jede nicht autorisierte Änderung könnte zu Datenverlust oder 
+              Inkonsistenzen in der Kontaktverwaltung führen.
+            */}
+            
+            {/* Kontaktauswahl - NICHT ÄNDERN */}
+            <div>
               <div className="flex gap-2 w-full">
                 <Select
                   defaultValue={formData.contactId}
@@ -760,14 +784,11 @@ export default function NeueRechnungPage() {
               )}
             </div>
 
-            {/* Straße */}
+            {/* Straße - NICHT ÄNDERN */}
             <div>
-              <Label>
-                Straße
-                <span className="text-red-500">*</span>
-              </Label>
               <Input
                 type="text"
+                placeholder="Straße *"
                 className={`w-full rounded-md border border-gray-300 p-2 ${
                   validationErrors.street ? 'border-red-500' : ''
                 }`}
@@ -782,15 +803,12 @@ export default function NeueRechnungPage() {
               />
             </div>
 
-            {/* PLZ und Stadt */}
+            {/* PLZ und Stadt - NICHT ÄNDERN */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>
-                  PLZ
-                  <span className="text-red-500">*</span>
-                </Label>
                 <Input
                   type="text"
+                  placeholder="PLZ *"
                   className={`w-full rounded-md border border-gray-300 p-2 ${
                     validationErrors.zip ? 'border-red-500' : ''
                   }`}
@@ -805,12 +823,9 @@ export default function NeueRechnungPage() {
                 />
               </div>
               <div>
-                <Label>
-                  Stadt
-                  <span className="text-red-500">*</span>
-                </Label>
                 <Input
                   type="text"
+                  placeholder="Stadt *"
                   className={`w-full rounded-md border border-gray-300 p-2 ${
                     validationErrors.city ? 'border-red-500' : ''
                   }`}
@@ -826,23 +841,41 @@ export default function NeueRechnungPage() {
               </div>
             </div>
 
-            {/* Land */}
+            {/* Land - NICHT ÄNDERN */}
             <div>
-              <Label>
-                Land
-              </Label>
-              <Input
-                type="text"
-                className="w-full rounded-md border border-gray-300 p-2"
-                value={formData.recipient?.country || 'Deutschland'}
-                onChange={(e) => updateFormData({
+              <Select
+                value={formData.recipient?.country || 'DE'}
+                onValueChange={(value) => updateFormData({
                   ...formData,
                   recipient: {
                     ...formData.recipient!,
-                    country: e.target.value
+                    country: value
                   }
                 })}
-              />
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Land auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Hauptländer */}
+                  <SelectItem value="DE">Deutschland</SelectItem>
+                  <SelectItem value="GB">Großbritannien</SelectItem>
+                  <SelectItem value="US">Vereinigte Staaten</SelectItem>
+                  
+                  {/* EU-Länder */}
+                  <SelectItem value="AT">Österreich</SelectItem>
+                  <SelectItem value="BE">Belgien</SelectItem>
+                  <SelectItem value="CH">Schweiz</SelectItem>
+                  <SelectItem value="CZ">Tschechien</SelectItem>
+                  <SelectItem value="DK">Dänemark</SelectItem>
+                  <SelectItem value="FR">Frankreich</SelectItem>
+                  <SelectItem value="IT">Italien</SelectItem>
+                  <SelectItem value="LI">Liechtenstein</SelectItem>
+                  <SelectItem value="LU">Luxemburg</SelectItem>
+                  <SelectItem value="NL">Niederlande</SelectItem>
+                  <SelectItem value="PL">Polen</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

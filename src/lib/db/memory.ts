@@ -4,7 +4,7 @@
  * Bitte seien Sie bei Änderungen besonders vorsichtig.
  */
 
-import { DatabaseInterface, Contact, Invoice, Settings, Tax } from './interfaces';
+import { DatabaseInterface, Contact, Invoice, Settings, Tax, Offer } from './interfaces';
 
 // Beispiel-Kontakte für die Initialisierung
 const initialContacts: Contact[] = [];
@@ -15,19 +15,23 @@ const initialInvoices: Invoice[] = [];
 class MemoryDatabase implements DatabaseInterface {
   private contacts: Contact[];
   private invoices: Invoice[];
+  private offers: Offer[] = [];
   private settings: Settings | null = null;
   private taxes: Tax[] = [];
 
   constructor() {
     // Lade gespeicherte Kontakte oder verwende leere Liste
     let savedContacts: Contact[] | null = null;
+    let savedOffers: Offer[] | null = null;
     
     if (typeof window !== 'undefined') {
-      const savedData = localStorage.getItem('contacts');
-      if (savedData) {
+      const savedContactsData = localStorage.getItem('contacts');
+      const savedOffersData = localStorage.getItem('offers');
+      
+      if (savedContactsData) {
         try {
-          savedContacts = JSON.parse(savedData, (key, value) => {
-            if (key === 'createdAt' || key === 'updatedAt') {
+          savedContacts = JSON.parse(savedContactsData, (key, value) => {
+            if (key === 'createdAt' || key === 'updatedAt' || key === 'date' || key === 'validUntil') {
               return new Date(value);
             }
             return value;
@@ -36,9 +40,23 @@ class MemoryDatabase implements DatabaseInterface {
           console.error('Fehler beim Laden der Kontakte:', error);
         }
       }
+
+      if (savedOffersData) {
+        try {
+          savedOffers = JSON.parse(savedOffersData, (key, value) => {
+            if (key === 'createdAt' || key === 'updatedAt' || key === 'date' || key === 'validUntil') {
+              return new Date(value);
+            }
+            return value;
+          });
+        } catch (error) {
+          console.error('Fehler beim Laden der Angebote:', error);
+        }
+      }
     }
     
     this.contacts = savedContacts || [];
+    this.offers = savedOffers || [];
 
     // Lade gespeicherte Rechnungen oder verwende leere Liste
     let savedInvoices: Invoice[] | null = null;
@@ -88,6 +106,12 @@ class MemoryDatabase implements DatabaseInterface {
   private saveInvoices() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('invoices', JSON.stringify(this.invoices));
+    }
+  }
+
+  private saveOffers() {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('offers', JSON.stringify(this.offers));
     }
   }
 
@@ -214,6 +238,58 @@ class MemoryDatabase implements DatabaseInterface {
 
   async listInvoices(): Promise<Invoice[]> {
     return [...this.invoices];
+  }
+
+  // Offer Methods
+  async createOffer(offer: Omit<Offer, 'id' | 'createdAt' | 'updatedAt'>): Promise<Offer> {
+    const newOffer: Offer = {
+      ...offer,
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.offers.push(newOffer);
+    this.saveOffers();
+    return newOffer;
+  }
+
+  async getOffer(id: string): Promise<Offer | null> {
+    const offer = this.offers.find(o => o.id === id);
+    return offer || null;
+  }
+
+  async updateOffer(id: string, offerUpdate: Partial<Offer>): Promise<Offer> {
+    const index = this.offers.findIndex(o => o.id === id);
+    if (index === -1) {
+      throw new Error('Angebot nicht gefunden');
+    }
+
+    const updatedOffer: Offer = {
+      ...this.offers[index],
+      ...offerUpdate,
+      updatedAt: new Date()
+    };
+
+    this.offers[index] = updatedOffer;
+    this.saveOffers();
+    return updatedOffer;
+  }
+
+  async deleteOffer(id: string): Promise<void> {
+    const index = this.offers.findIndex(o => o.id === id);
+    if (index !== -1) {
+      this.offers.splice(index, 1);
+      this.saveOffers();
+    }
+  }
+
+  async listOffers(): Promise<Offer[]> {
+    return this.offers;
+  }
+
+  async resetOffers(): Promise<void> {
+    this.offers = [];
+    this.saveOffers();
   }
 
   // Helper method to reset the database
