@@ -123,13 +123,25 @@ class MemoryDatabase implements DatabaseInterface {
 
   // Hilfsfunktion zum Generieren der nächsten Rechnungsnummer
   private getNextInvoiceNumber(): string {
+    /**
+     * @important RECHNUNGSNUMMER-FORMAT IN DER DATENBANK
+     * Das Format der Rechnungsnummer MUSS immer eine vierstellige Zahl sein (z.B. "5183").
+     * Dieses Format ist fest definiert und darf NICHT geändert werden, da:
+     * 1. Es für die Buchhaltung und Archivierung essentiell ist
+     * 2. Externe Systeme darauf aufbauen
+     * 3. Die Rechnungsnummer in dieser Form rechtlich bindend ist
+     * 
+     * @format XXXX (X = Ziffer von 0-9)
+     * @example "5183"
+     * @warning KEINE Präfixe oder Suffixe hinzufügen!
+     */
     if (this.invoices.length === 0) {
       return '1001'; // Startnummer
     }
 
     // Finde die höchste Rechnungsnummer
     const maxNumber = Math.max(...this.invoices.map(inv => parseInt(inv.number)));
-    return (maxNumber + 1).toString();
+    return (maxNumber + 1).toString().padStart(4, '0');
   }
 
   async getNextInvoiceNumberPublic(): Promise<string> {

@@ -73,10 +73,18 @@ export default function InvoicePreviewPage() {
           
           // Generiere Rechnungsnummer für neue Rechnungen
           if (!parsedDraft.number) {
-            const date = new Date();
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            parsedDraft.number = `RE${year}${month}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+            /**
+             * @important RECHNUNGSNUMMER-FORMAT
+             * Das Format der Rechnungsnummer MUSS immer eine vierstellige Zahl sein (z.B. "5183").
+             * Dieses Format ist fest definiert und darf NICHT geändert werden, da:
+             * 1. Es für die Buchhaltung und Archivierung essentiell ist
+             * 2. Externe Systeme darauf aufbauen
+             * 3. Die Rechnungsnummer in dieser Form rechtlich bindend ist
+             * 
+             * @format XXXX (X = Ziffer von 0-9)
+             * @example "5183"
+             */
+            parsedDraft.number = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
           }
           
           // Berechne die Preise für jede Position

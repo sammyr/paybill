@@ -163,6 +163,15 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                     <tbody>
                       <tr>
                         <td className="py-1">Rechnungs-Nr.</td>
+                        {/**
+                         * @important RECHNUNGSNUMMER-ANZEIGE
+                         * Die Rechnungsnummer wird hier im festgelegten Format angezeigt: XXXX (4-stellige Zahl)
+                         * Dieses Format ist verbindlich und darf NICHT verändert werden.
+                         * Die Nummer wird ohne Präfix oder Suffix angezeigt.
+                         * 
+                         * @format XXXX (X = Ziffer von 0-9)
+                         * @example "5183"
+                         */}
                         <td className="text-right">{invoice?.number}</td>
                       </tr>
                       <tr>
