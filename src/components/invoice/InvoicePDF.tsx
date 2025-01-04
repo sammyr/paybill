@@ -188,7 +188,9 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
 
               {/* Rechnungsnummer und Tabelle */}
               <div className="mb-16">
-                <h1 className="text-2xl font-bold mb-4">Rechnung Nr. {invoice.number}</h1>
+                <h1 className="text-2xl font-bold mb-4">
+                  Rechnung Nr. {invoice.number || invoice?.id?.substring(0, 8) || 'ENTWURF'}
+                </h1>
                 
                 {/* Rechnungspositionen */}
                 <table className="w-full mb-8">

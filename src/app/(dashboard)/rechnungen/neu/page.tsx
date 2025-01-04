@@ -19,6 +19,12 @@ import { Switch } from '@/components/ui/switch';
 import { getDatabase } from '@/lib/db';
 import { Contact, Invoice } from '@/lib/db/interfaces';
 import { useToast } from '@/components/ui/use-toast';
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
+import { de } from "date-fns/locale"
+import { cn } from "@/lib/utils"
 
 // Hilfsfunktion zur Generierung einer einfachen UUID
 function generateId() {
@@ -48,9 +54,9 @@ interface FormData {
     vat: number;
     amount: number;
   }[];
-  date: string;
-  dueDate: string;
-  deliveryDate: string;
+  date: Date;
+  dueDate: Date;
+  deliveryDate: Date;
   invoiceNumber: string;
   referenceNumber: string;
   notes: string;
@@ -102,9 +108,9 @@ const defaultFormData: FormData = {
       amount: 760
     }
   ],
-  date: new Date().toISOString().split('T')[0],
-  dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  deliveryDate: new Date().toISOString().split('T')[0],
+  date: new Date(),
+  dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+  deliveryDate: new Date(),
   invoiceNumber: `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
   referenceNumber: 'PROJ-2024-001',
   notes: 'Vielen Dank für Ihren Auftrag!\n\nBitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten angegebene Konto.',
@@ -156,6 +162,9 @@ export default function NeueRechnungPage() {
   const [isErechnung, setIsErechnung] = useState(false);
   const { toast } = useToast();
   const [formData, updateFormData, clearFormData] = useInvoiceFormStorage();
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [deliveryDatePopoverOpen, setDeliveryDatePopoverOpen] = useState(false);
+  const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -180,7 +189,7 @@ export default function NeueRechnungPage() {
       dueDate.setDate(dueDate.getDate() + paymentDays);
       updateFormData({
         ...formData,
-        dueDate: dueDate.toISOString().split('T')[0]
+        dueDate: dueDate
       });
     }
   }, [formData.date, paymentDays]);
@@ -496,8 +505,9 @@ export default function NeueRechnungPage() {
 
       // Erstelle neue Rechnung
       const invoice: Omit<Invoice, 'id' | 'number' | 'createdAt' | 'updatedAt'> = {
-        date: formData.date ? new Date(formData.date) : new Date(),
-        dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + paymentDays * 24 * 60 * 60 * 1000),
+        date: formData.date,
+        dueDate: formData.dueDate,
+        number: await db.getNextInvoiceNumber(), // Rechnungsnummer hinzugefügt
         contactId: formData.contactId,
         recipient: {
           name: formData.recipient.name,
@@ -886,33 +896,67 @@ export default function NeueRechnungPage() {
           
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>
+              <div className="w-[240px]">
+                <Label className="mb-2 block">
                   Rechnungsdatum
                   <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="date"
-                  className={`w-full rounded-md border border-gray-300 p-2 ${
-                    validationErrors.date ? 'border-red-500' : ''
-                  }`}
-                  value={formData.date}
-                  onChange={(e) => updateFormData({ ...formData, date: e.target.value })}
-                />
+                <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.date ? format(formData.date, "P", { locale: de }) : <span>Datum wählen</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.date}
+                      onSelect={(date) => {
+                        updateFormData({ ...formData, date: date || new Date() });
+                        setDatePopoverOpen(false);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label>
                   Lieferdatum
                   <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="date"
-                  className={`w-full rounded-md border border-gray-300 p-2 ${
-                    validationErrors.deliveryDate ? 'border-red-500' : ''
-                  }`}
-                  value={formData.deliveryDate}
-                  onChange={(e) => updateFormData({ ...formData, deliveryDate: e.target.value })}
-                />
+                <Popover open={deliveryDatePopoverOpen} onOpenChange={setDeliveryDatePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.deliveryDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.deliveryDate ? format(formData.deliveryDate, "PPP", { locale: de }) : <span>Datum wählen</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.deliveryDate}
+                      onSelect={(date) => {
+                        updateFormData({ ...formData, deliveryDate: date || new Date() });
+                        setDeliveryDatePopoverOpen(false);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -947,14 +991,31 @@ export default function NeueRechnungPage() {
                 Zahlungsziel
               </Label>
               <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  className={`flex-1 rounded-md border border-gray-300 p-2 ${
-                    validationErrors.dueDate ? 'border-red-500' : ''
-                  }`}
-                  value={formData.dueDate}
-                  onChange={(e) => updateFormData({ ...formData, dueDate: e.target.value })}
-                />
+                <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.dueDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.dueDate ? format(formData.dueDate, "PPP", { locale: de }) : <span>Datum wählen</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.dueDate}
+                      onSelect={(date) => {
+                        updateFormData({ ...formData, dueDate: date || new Date() });
+                        setDueDatePopoverOpen(false);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
                 <span>in</span>
                 <Input
                   type="number"
@@ -1219,7 +1280,7 @@ export default function NeueRechnungPage() {
           rows={4}
           value={formData.notes}
           onChange={(e) => updateFormData({ ...formData, notes: e.target.value })}
-          placeholder="Vielen Dank für Ihren Auftrag. Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten angegebene Konto."
+          placeholder="Vielen Dank für Ihren Auftrag!\n\nBitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten angegebene Konto."
         />
       </div>
 

@@ -132,6 +132,10 @@ class MemoryDatabase implements DatabaseInterface {
     return (maxNumber + 1).toString();
   }
 
+  async getNextInvoiceNumberPublic(): Promise<string> {
+    return this.getNextInvoiceNumber();
+  }
+
   // Contacts
   async createContact(contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
     const newContact: Contact = {
