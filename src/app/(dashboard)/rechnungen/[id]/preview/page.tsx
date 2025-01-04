@@ -89,17 +89,26 @@ export default function InvoicePreviewPage() {
           
           // Berechne die Preise für jede Position
           if (parsedDraft.positions) {
+            console.log('Originale Positionen:', parsedDraft.positions);
             parsedDraft.positions = parsedDraft.positions.map(pos => {
               // Setze Standardpreise basierend auf der Beschreibung
               const unitPrice = pos.description.toLowerCase().includes('webentwicklung') ? 85 : 75;
               const quantity = parseFloat(pos.quantity?.toString() || '0');
               
-              return {
+              // Debug-Ausgabe für jede Position
+              console.log('Position vor Verarbeitung:', pos);
+              
+              const updatedPosition = {
                 ...pos,
                 unitPrice: pos.unitPrice || unitPrice,
                 totalNet: quantity * (pos.unitPrice || unitPrice),
-                taxRate: 19 // Standardmäßig 19% MwSt
+                taxRate: pos.vat || pos.taxRate || 19 // Versuche zuerst vat, dann taxRate, sonst 19%
               };
+              
+              // Debug-Ausgabe nach der Verarbeitung
+              console.log('Position nach Verarbeitung:', updatedPosition);
+              
+              return updatedPosition;
             });
           }
           
