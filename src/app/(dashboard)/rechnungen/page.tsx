@@ -88,6 +88,8 @@ interface Invoice {
   grossTotal: number;
   isLocked?: boolean;
   positions: any[];
+  displayNumber: string;
+  recipient: any;
 }
 
 const getStatusIcon = (status: string) => {
@@ -121,6 +123,12 @@ const getStatusLabel = (status: string) => {
   return labels[displayStatus] || displayStatus;
 };
 
+// Hilfsfunktion zur Generierung der Rechnungsnummer
+const generateDisplayNumber = () => {
+  const now = new Date();
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+};
+
 export default function RechnungenPage() {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -133,17 +141,27 @@ export default function RechnungenPage() {
     
     // Entferne Duplikate basierend auf der Rechnungsnummer
     const uniqueInvoices = loadedInvoices.reduce((acc, current) => {
-      const x = acc.find(item => item.number === current.number);
+      const x = acc.find(item => item.id === current.id);
       if (!x) {
-        return acc.concat([current]);
-      } else {
-        // Wenn ein Duplikat gefunden wurde, behalte die neuere Version
-        const index = acc.indexOf(x);
-        if (new Date(current.updatedAt) > new Date(x.updatedAt)) {
-          acc[index] = current;
+        // Lade Draft-Daten aus localStorage
+        let draftData;
+        try {
+          const savedDraft = localStorage.getItem(`invoice_draft_${current.id}`);
+          if (savedDraft) {
+            draftData = JSON.parse(savedDraft);
+          }
+        } catch (error) {
+          console.error('Fehler beim Laden des Drafts:', error);
         }
-        return acc;
+
+        return acc.concat([{
+          ...current,
+          // Verwende die Nummer aus dem Draft, wenn verfügbar
+          number: draftData?.invoiceNumber || current.number || current.invoiceNumber,
+          displayNumber: draftData?.invoiceNumber || current.number || current.invoiceNumber || generateDisplayNumber()
+        }]);
       }
+      return acc;
     }, [] as any[]);
     
     // Berechne die Gesamtbeträge für jede Rechnung
@@ -281,12 +299,13 @@ export default function RechnungenPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Status</TableHead>
-              <TableHead>Fällig am</TableHead>
-              <TableHead>Nummer</TableHead>
-              <TableHead className="text-right">Netto</TableHead>
-              <TableHead className="text-right">USt.</TableHead>
-              <TableHead className="text-right">Gesamt</TableHead>
-              <TableHead className="text-right">Aktionen</TableHead>
+              <TableHead>Fälligkeit</TableHead>
+              <TableHead>Rechnungsnr.</TableHead>
+              <TableHead>Kunde</TableHead>
+              <TableHead>Datum</TableHead>
+              <TableHead>Betrag (netto)</TableHead>
+              <TableHead>Offen (brutto)</TableHead>
+              <TableHead className="w-[100px]">Aktionen</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -294,14 +313,16 @@ export default function RechnungenPage() {
               <TableRow key={invoice.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {getStatusIcon(invoice.status)}
-                    <span className="text-sm font-medium">{getStatusLabel(invoice.status)}</span>
+                    {getStatusIcon(invoice.status)} {getStatusLabel(invoice.status)}
                   </div>
                 </TableCell>
                 <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                <TableCell>{invoice.number}</TableCell>
+                <TableCell>
+                  {invoice.displayNumber || invoice.number || invoice.invoiceNumber || '-'}
+                </TableCell>
+                <TableCell>{invoice.recipient?.name || invoice.recipient?.companyName || '-'}</TableCell>
+                <TableCell>{formatDate(invoice.date)}</TableCell>
                 <TableCell className="text-right">{formatCurrency(invoice.netTotal)} €</TableCell>
-                <TableCell className="text-right">{formatCurrency(invoice.vatTotal)} €</TableCell>
                 <TableCell className="text-right">{formatCurrency(invoice.grossTotal)} €</TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end space-x-2">

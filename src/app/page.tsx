@@ -77,7 +77,7 @@ export default function Home() {
         </div>
         <div className="container mx-auto px-4 flex flex-col items-center text-center relative z-10 text-white pt-20">
           <h1 className="text-5xl md:text-6xl font-bold mb-6">
-            Willkommen bei PayBill
+            PayBill
           </h1>
           <p className="text-xl md:text-2xl mb-8 max-w-2xl">
             Ihre moderne Lösung für Rechnungsverwaltung und Buchhaltung. 
