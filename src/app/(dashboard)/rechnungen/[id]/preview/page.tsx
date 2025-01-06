@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { InvoicePDF } from '@/components/invoice/InvoicePDF';
 import type { Invoice } from '@/lib/db/interfaces';
-import { PDFDownloadLink } from '@react-pdf/renderer';
 
 interface InvoicePosition {
   id: string;
@@ -205,8 +204,60 @@ export default function InvoicePreviewPage() {
   };
 
   const handleDownload = async () => {
-    // Implementierung für Download
-    console.log('Download invoice:', invoice?.id);
+    if (!invoice) return;
+
+    try {
+      toast({
+        title: "PDF wird erstellt",
+        description: "Bitte warten Sie einen Moment...",
+      });
+
+      const response = await fetch('/api/invoice/pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invoice: {
+            ...invoice,
+            vatAmounts: totals.vatAmounts,
+            totalVat: totals.totalVat,
+            totalNet: totals.netTotal,
+            totalGross: totals.grossTotal,
+            discountAmount: totals.discountAmount
+          },
+          settings
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('PDF konnte nicht erstellt werden');
+      }
+
+      // PDF-Blob erstellen und herunterladen
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Rechnung-${invoice.number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "PDF erfolgreich erstellt",
+        description: "Die Rechnung wurde als PDF exportiert.",
+      });
+
+    } catch (error) {
+      console.error('Fehler beim PDF-Export:', error);
+      toast({
+        title: "Fehler beim PDF-Export",
+        description: "Die PDF konnte nicht erstellt werden.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleEmail = async () => {
@@ -383,7 +434,6 @@ export default function InvoicePreviewPage() {
             </Button>
           )}
           
-          {/* PDF Download Button */}
           <Button 
             variant="outline"
             onClick={handleDownload}
@@ -393,7 +443,6 @@ export default function InvoicePreviewPage() {
             PDF
           </Button>
           
-          {/* E-Mail Button */}
           <Button
             variant="outline"
             onClick={handleEmail}
@@ -403,7 +452,6 @@ export default function InvoicePreviewPage() {
             E-Mail
           </Button>
           
-          {/* Drucken Button */}
           <Button 
             variant="outline"
             onClick={handlePrint}

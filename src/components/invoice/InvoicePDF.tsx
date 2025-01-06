@@ -22,6 +22,7 @@
 
 import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 import './InvoicePDF.css';
 
 interface InvoicePDFProps {
@@ -49,71 +50,15 @@ interface InvoicePDFProps {
     discountAmount?: number;
     notes?: string;
     status?: string;
+    customerNumber?: string;
+    contactPerson?: string;
   };
   settings: any;
   mode?: 'preview' | 'print';
 }
 
 export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode = 'preview' }) => {
-  /**
-   * @ai-protected-function
-   * @description Diese Funktion enthält kritische Berechnungslogik für Rechnungsbeträge.
-   * @warning KEINE ÄNDERUNGEN ERLAUBT! Diese Funktion wurde am 04.01.2025 finalisiert.
-   * Jegliche Änderungen an Berechnungen oder Formaten könnten die Rechnungsstellung beschädigen.
-   * @reason Die Berechnungslogik muss für steuerliche und buchhalterische Zwecke konsistent bleiben.
-   */
-  const calculateTotals = () => {
-    // Netto-Summe berechnen
-    const netTotal = invoice.positions.reduce((sum, pos) => {
-      return sum + (Number(pos.quantity || 0) * Number(pos.unitPrice || 0));
-    }, 0);
-
-    // Rabatt berechnen
-    let discountAmount = invoice.discountAmount || 0;
-
-    // Netto nach Rabatt
-    const netAfterDiscount = netTotal - discountAmount;
-
-    // MwSt pro Steuersatz berechnen
-    const vatAmounts = {};
-    invoice.positions.forEach(pos => {
-      const positionNet = Number(pos.quantity || 0) * Number(pos.unitPrice || 0);
-      const vatRate = pos.taxRate || 19;
-      
-      // Anteiligen Rabatt für diese Position berechnen
-      const positionDiscountRatio = positionNet / netTotal;
-      const positionDiscount = discountAmount * positionDiscountRatio;
-      const positionNetAfterDiscount = positionNet - positionDiscount;
-      
-      // MwSt für diese Position berechnen
-      if (!vatAmounts[vatRate]) {
-        vatAmounts[vatRate] = 0;
-      }
-      vatAmounts[vatRate] += positionNetAfterDiscount * (vatRate / 100);
-    });
-
-    // Runde MwSt-Beträge
-    Object.keys(vatAmounts).forEach(rate => {
-      vatAmounts[rate] = Number(vatAmounts[rate].toFixed(2));
-    });
-    
-    // Gesamte MwSt
-    const totalVat = Object.values(vatAmounts).reduce((sum: number, amount: number) => sum + amount, 0);
-
-    // Brutto-Gesamtbetrag
-    const grossTotal = netAfterDiscount + totalVat;
-
-    return {
-      netTotal: Number(netTotal.toFixed(2)),
-      discountAmount: Number(discountAmount.toFixed(2)),
-      netAfterDiscount: Number(netAfterDiscount.toFixed(2)),
-      vatAmounts,
-      totalVat: Number(totalVat.toFixed(2)),
-      grossTotal: Number(grossTotal.toFixed(2))
-    };
-  };
-
-  const totals = calculateTotals();
+  const totals = calculateInvoiceTotals(invoice);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('de-DE', { 
@@ -195,8 +140,8 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                         @reason Rechnungsnummern müssen für Buchhaltung und Archivierung konsistent sein
                       */}
                       <tr>
-                        <td className="py-1">Rechnungs-Nr.</td>
-                        <td className="text-right">{invoice.number?.padStart(4, '0')}</td>
+                        <td className="py-1"><strong>Rechnungs-Nr.</strong></td>
+                        <td className="text-right"><strong>{invoice.number?.padStart(4, '0')}</strong></td>
                       </tr>
                       <tr>
                         <td className="py-1">Rechnungsdatum</td>
@@ -206,14 +151,18 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                         <td className="py-1">Lieferdatum</td>
                         <td className="text-right">{new Date(invoice.date).toLocaleDateString('de-DE')}</td>
                       </tr>
-                      <tr>
-                        <td className="py-1">Ihre Kundennummer</td>
-                        <td className="text-right">1043</td>
-                      </tr>
-                      <tr>
-                        <td className="py-1">Ihr Ansprechpartner</td>
-                        <td className="text-right">Sammy Richter</td>
-                      </tr>
+                      {invoice.customerNumber && (
+                        <tr>
+                          <td className="py-1">Ihre Kundennummer</td>
+                          <td className="text-right">{invoice.customerNumber}</td>
+                        </tr>
+                      )}
+                      {settings.owner && (
+                        <tr>
+                          <td className="py-1">Ihr Ansprechpartner</td>
+                          <td className="text-right">{settings.owner}</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -262,7 +211,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                       @ai-protected-section
                       @warning KEINE ÄNDERUNGEN AN DER BETRAGSBERECHNUNG ODER FORMATIERUNG!
                       Die Darstellung der Beträge folgt den deutschen Buchhaltungsstandards.
-                      @format Währung: de-DE, EUR, 2 Dezimalstellen
+                      Format: Währung: de-DE, EUR, 2 Dezimalstellen
                       @reason Gesetzliche Anforderungen an die Rechnungsstellung
                     */}
                     <tr>
@@ -285,7 +234,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                       @ai-protected-section
                       @warning KEINE ÄNDERUNGEN AN DER MWST-BERECHNUNG UND SORTIERUNG!
                       Die MwSt-Sätze müssen in absteigender Reihenfolge angezeigt werden (19% vor 7%).
-                      @format Prozentsatz: Ganzzahl, Betrag: de-DE, EUR, 2 Dezimalstellen
+                      Format: Prozentsatz: Ganzzahl, Betrag: de-DE, EUR, 2 Dezimalstellen
                       @reason Gesetzliche Anforderungen an die MwSt-Ausweisung
                     */}
                     {Object.entries(totals.vatAmounts)
@@ -301,7 +250,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                       @ai-protected-section
                       @warning KEINE ÄNDERUNGEN AN DER BRUTTOBETRAGSBERECHNUNG!
                       Der Bruttobetrag muss die Summe aus Netto, abzüglich Rabatt, plus MwSt sein.
-                      @format de-DE, EUR, 2 Dezimalstellen
+                      Format: de-DE, EUR, 2 Dezimalstellen
                       @reason Gesetzliche Anforderungen an die Rechnungsstellung
                     */}
                     <tr className="font-bold border-t">
@@ -326,7 +275,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                     {settings.companyName}<br />
                     {settings.street}<br />
                     {settings.zip} {settings.city}<br />
-                    {settings.country || 'Deutschland'}
+                    {settings.country}
                   </div>
                   <div>
                     Tel.: {settings.phone}<br />
@@ -339,9 +288,9 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                     Inhaber/-in: {settings.owner}
                   </div>
                   <div>
-                    {settings.bankDetails?.bankName || 'Berliner Sparkasse'}<br />
-                    IBAN: {settings.bankDetails?.iban}<br />
-                    BIC: {settings.bankDetails?.bic}
+                    {settings.bankDetails?.bankName && <p>Bank: {settings.bankDetails.bankName}</p>}
+                    {settings.bankDetails?.iban && <p>IBAN: {settings.bankDetails.iban}</p>}
+                    {settings.bankDetails?.bic && <p>BIC: {settings.bankDetails.bic}</p>}
                   </div>
                 </div>
               </div>
