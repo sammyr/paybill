@@ -25,6 +25,13 @@ import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 import { de } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { 
+  calculateInvoiceTotals, 
+  formatCurrency,
+  calculatePositionTotals,
+  type Invoice as InvoiceType,
+  type InvoiceTotals
+} from '@/lib/invoice-utils';
 
 // Hilfsfunktion zur Generierung einer einfachen UUID
 function generateId() {
@@ -50,9 +57,10 @@ interface FormData {
   positions: {
     description: string;
     quantity: number;
-    price: number;
-    vat: number;
-    amount: number;
+    unitPrice: number;
+    taxRate: number;
+    totalNet: number;
+    totalGross: number;
   }[];
   date: Date;
   dueDate: Date;
@@ -90,23 +98,26 @@ const defaultFormData: FormData = {
     {
       description: 'Webentwicklung - Frontend',
       quantity: 20,
-      price: 90,
-      vat: 19,
-      amount: 1800
+      unitPrice: 90,
+      taxRate: 19,
+      totalNet: 1800,
+      totalGross: 1800 * (1 + 19 / 100)
     },
     {
       description: 'UI/UX Design',
       quantity: 15,
-      price: 85,
-      vat: 19,
-      amount: 1275
+      unitPrice: 85,
+      taxRate: 19,
+      totalNet: 1275,
+      totalGross: 1275 * (1 + 19 / 100)
     },
     {
       description: 'Projektmanagement',
       quantity: 8,
-      price: 95,
-      vat: 19,
-      amount: 760
+      unitPrice: 95,
+      taxRate: 19,
+      totalNet: 760,
+      totalGross: 760 * (1 + 19 / 100)
     }
   ],
   date: new Date(),
@@ -214,25 +225,64 @@ export default function NeueRechnungPage() {
         try {
           const invoice = await db.getInvoice(id);
           if (invoice) {
+            console.log('Geladene Rechnung:', invoice); // Debug-Log
+            
             // Verwende die existierende Nummer
             number = invoice.number;
             
             // Stelle sicher, dass alle Positionen die erforderlichen Felder haben
-            const positions = invoice.positions?.map(pos => ({
-              description: pos.description || '',
-              quantity: pos.quantity || 0,
-              price: pos.price || 0,
-              vat: pos.vat ?? 19, // Setze 19% als Standard-MwSt wenn nicht definiert
-              amount: pos.amount || (pos.quantity || 0) * (pos.price || 0)
-            })) || [];
+            const positions = invoice.positions?.map(pos => {
+              // Debug-Log für jede Position
+              console.log('Position vor Konvertierung:', pos);
+              
+              // Konvertiere alle Werte explizit in ihre korrekten Typen
+              const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseFloat(String(pos.quantity)) || 0;
+              const unitPrice = typeof pos.unitPrice === 'number' ? pos.unitPrice : parseFloat(String(pos.unitPrice)) || 0;
+              const taxRate = typeof pos.taxRate === 'number' ? pos.taxRate : 19;
+              
+              const totalNet = quantity * unitPrice;
+              const totalGross = totalNet * (1 + (taxRate / 100));
+              
+              const convertedPosition = {
+                description: pos.description || '',
+                quantity: quantity,
+                unitPrice: unitPrice,
+                taxRate: taxRate,
+                totalNet: totalNet,
+                totalGross: totalGross
+              };
+              
+              // Debug-Log für konvertierte Position
+              console.log('Position nach Konvertierung:', convertedPosition);
+              
+              return convertedPosition;
+            }) || [];
+
+            // Debug-Log für alle Positionen
+            console.log('Alle konvertierten Positionen:', positions);
+
+            // Konvertiere den Rabatt
+            let convertedDiscount = null;
+            if (invoice.discount) {
+              convertedDiscount = {
+                type: invoice.discountType || 'fixed',
+                value: typeof invoice.discountValue === 'number' ? invoice.discountValue : parseFloat(String(invoice.discountValue)) || 0
+              };
+            }
 
             // Aktualisiere das Formular mit den Rechnungsdaten
-            updateFormData({
+            const updatedFormData = {
               ...defaultFormData,
               ...invoice,
-              positions,
+              positions: positions,
+              discount: convertedDiscount,
               number: number
-            });
+            };
+            
+            // Debug-Log für die finalen Formulardaten
+            console.log('Finale Formulardaten:', updatedFormData);
+            
+            updateFormData(updatedFormData);
           }
         } catch (error) {
           console.error('Fehler beim Laden der Rechnung:', error);
@@ -290,7 +340,7 @@ export default function NeueRechnungPage() {
           street: '',
           zip: '',
           city: '',
-          country: 'Deutschland',
+          country: 'DE',
           email: '',
           phone: '',
           taxId: ''
@@ -320,44 +370,53 @@ export default function NeueRechnungPage() {
     }
   };
 
-  const handlePositionChange = (index: number, field: string, value: string) => {
+  const [totals, setTotals] = useState<InvoiceTotals>({
+    netTotal: 0,
+    discountAmount: 0,
+    netAfterDiscount: 0,
+    vatAmounts: {},
+    totalVat: 0,
+    grossTotal: 0
+  });
+
+  useEffect(() => {
+    const newTotals = calculateInvoiceTotals(formData);
+    setTotals(newTotals);
+  }, [formData]);
+
+  const handlePositionChange = (index: number, field: string, value: any) => {
     const positions = [...formData.positions];
     const position = { ...positions[index] };
 
-    if (field === 'price') {
-      // Entferne zuerst alle Tausendertrennzeichen
-      const cleanValue = value.replace(/\./g, '');
-      // Ersetze Komma durch Punkt für die Berechnung
-      const numericValue = cleanValue.replace(',', '.');
-      // Parse als Nummer
-      position[field] = parseFloat(numericValue) || 0;
-    } else if (field === 'quantity') {
-      position[field] = parseInt(value) || 0;
-    } else if (field === 'vat') {
-      position[field] = parseFloat(value) || 19; // Standard-MwSt wenn ungültig
+    // Konvertiere Werte in Zahlen wo nötig
+    if (field === 'quantity' || field === 'unitPrice') {
+      position[field] = value === '' ? 0 : Number(value);
+    } else if (field === 'taxRate') {
+      position[field] = Number(value);
     } else {
       position[field] = value;
     }
 
-    // Stelle sicher, dass vat immer gesetzt ist
-    if (typeof position.vat === 'undefined') {
-      position.vat = 19; // Standard-MwSt
-    }
-
-    // Berechne den Gesamtbetrag für die Position
-    position.amount = position.quantity * position.price;
+    // Berechne die Position neu
+    const { totalNet, totalGross } = calculatePositionTotals(position);
+    position.totalNet = totalNet;
+    position.totalGross = totalGross;
 
     positions[index] = position;
-    updateFormData({ ...formData, positions });
+    updateFormData({
+      ...formData,
+      positions
+    });
   };
 
   const addPosition = () => {
     const newPositions = [...formData.positions, {
       description: '',
       quantity: 1,
-      price: 0,
-      vat: 19,
-      amount: 0
+      unitPrice: 0,
+      taxRate: 19,
+      totalNet: 0,
+      totalGross: 0
     }];
     updateFormData({
       ...formData,
@@ -374,104 +433,19 @@ export default function NeueRechnungPage() {
     });
   };
 
-  const calculateTotals = (positions: any[], discount?: { type: 'percentage' | 'fixed', value: number }) => {
-    // Netto-Summe berechnen
-    const netTotal = positions.reduce((sum, pos) => sum + (pos.quantity * pos.price), 0);
-
-    // Rabatt berechnen
-    let discountAmount = 0;
-    if (discount) {
-      if (discount.type === 'percentage') {
-        discountAmount = netTotal * (discount.value / 100);
-      } else {
-        discountAmount = discount.value;
-      }
-    }
-
-    // Netto nach Rabatt
-    const netAfterDiscount = netTotal - discountAmount;
-
-    // MwSt pro Satz berechnen
-    const vatAmounts = positions.reduce((acc, pos) => {
-      const positionNet = (pos.quantity * pos.price);
-      // Anteiligen Rabatt für diese Position berechnen
-      const positionDiscountRatio = positionNet / netTotal;
-      const positionDiscount = discountAmount * positionDiscountRatio;
-      const positionNetAfterDiscount = positionNet - positionDiscount;
-      
-      const vatRate = pos.vat;
-      if (!acc[vatRate]) {
-        acc[vatRate] = 0;
-      }
-      acc[vatRate] += positionNetAfterDiscount * (vatRate / 100);
-      return acc;
-    }, {});
-
-    // Gesamte MwSt
-    const totalVat = Object.values(vatAmounts).reduce((sum: number, amount: number) => sum + amount, 0);
-
-    // Brutto-Summe
-    const grossTotal = netAfterDiscount + totalVat;
-
-    return {
-      netTotal,
-      discountAmount,
-      netAfterDiscount,
-      vatAmounts,
-      totalVat,
-      grossTotal
-    };
-  };
-
-  const [totals, setTotals] = useState({
-    netTotal: 0,
-    discountAmount: 0,
-    netAfterDiscount: 0,
-    vatAmounts: {},
-    totalVat: 0,
-    grossTotal: 0
-  });
-
-  useEffect(() => {
-    if (formData.positions) {
-      const totals = calculateTotals(formData.positions, formData.discount);
-      setTotals(totals);
-    }
-  }, [formData.positions, formData.discount]);
-
-  const calculatePositionAmount = (position: InvoicePosition) => {
-    if (!position.quantity || !position.price) return 0;
-    const baseAmount = position.quantity * position.price;
-    return baseAmount;
-  };
-
-  const calculateDiscount = () => {
-    if (!formData.discount) return 0;
-    
-    const subtotal = calculateTotals(formData.positions, formData.discount).netTotal;
-    if (formData.discount.type === 'percentage') {
-      return (subtotal * formData.discount.value) / 100;
-    }
-    return formData.discount.value;
-  };
-
   const handleAddDiscount = () => {
     setShowDiscountDialog(true);
   };
 
-  const handleDiscountSubmit = () => {
-    const value = Number(discountValue);
-    if (!isNaN(value) && value > 0) {
-      updateFormData(prev => ({
-        ...prev,
-        discount: {
-          type: discountType,
-          value: value
-        }
-      }));
-    }
+  const handleDiscountSubmit = (type: 'percentage' | 'fixed', value: number) => {
+    updateFormData({
+      ...formData,
+      discount: {
+        type,
+        value: Number(value)
+      }
+    });
     setShowDiscountDialog(false);
-    setDiscountValue('');
   };
 
   const handleContactSelect = (contact: Contact) => {
@@ -536,8 +510,8 @@ export default function NeueRechnungPage() {
         if (position.quantity <= 0) {
           errors[`position_${index}_quantity`] = 'Menge muss größer als 0 sein';
         }
-        if (position.price < 0) {
-          errors[`position_${index}_price`] = 'Preis darf nicht negativ sein';
+        if (position.unitPrice < 0) {
+          errors[`position_${index}_unitPrice`] = 'Preis darf nicht negativ sein';
         }
       });
     }
@@ -566,10 +540,10 @@ export default function NeueRechnungPage() {
       const db = getDatabase();
       
       // Berechne Gesamtbeträge
-      const totals = calculateTotals(formData.positions, formData.discount);
+      const totals = calculateInvoiceTotals(formData);
 
       // Erstelle neue Rechnung
-      const invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> = {
+      const invoice: Omit<InvoiceType, 'id' | 'createdAt' | 'updatedAt'> = {
         date: formData.date,
         dueDate: formData.dueDate,
         number: formData.number,
@@ -588,9 +562,10 @@ export default function NeueRechnungPage() {
           id: generateId(),
           description: pos.description,
           quantity: Number(pos.quantity),
-          unitPrice: Number(pos.price),
-          taxRate: Number(pos.vat),
-          amount: Number(pos.quantity) * Number(pos.price)
+          unitPrice: Number(pos.unitPrice),
+          taxRate: Number(pos.taxRate),
+          totalNet: Number(pos.totalNet),
+          totalGross: Number(pos.totalGross)
         })) || [],
         notes: formData.notes,
         discount: totals.discountAmount,
@@ -705,7 +680,7 @@ export default function NeueRechnungPage() {
   const saveDraft = async () => {
     try {
       const db = getDatabase();
-      const totals = calculateTotals(formData.positions, formData.discount);
+      const totals = calculateInvoiceTotals(formData);
 
       // Prüfe ob die Rechnungsnummer bereits existiert
       const existingInvoices = await db.listInvoices();
@@ -734,14 +709,16 @@ export default function NeueRechnungPage() {
             id: generateId(),
             description: pos.description,
             quantity: Number(pos.quantity),
-            unitPrice: Number(pos.price),
-            taxRate: Number(pos.vat),
-            amount: Number(pos.quantity) * Number(pos.price)
+            unitPrice: Number(pos.unitPrice),
+            taxRate: Number(pos.taxRate),
+            totalNet: Number(pos.totalNet),
+            totalGross: Number(pos.totalGross)
           })) || [],
           notes: formData.notes,
-          discount: totals.discountAmount,
-          discountType: formData.discount?.type,
-          discountValue: formData.discount?.value,
+          discount: formData.discount ? {
+            type: formData.discount.type,
+            value: Number(formData.discount.value)
+          } : undefined,
           totalNet: totals.netTotal,
           totalGross: totals.grossTotal,
           vatAmount: totals.totalVat,
@@ -751,11 +728,11 @@ export default function NeueRechnungPage() {
       }
 
       // Erstelle eine neue Rechnung
-      const invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> = {
+      const invoice: Omit<InvoiceType, 'id' | 'createdAt' | 'updatedAt'> = {
         date: formData.date,
         dueDate: formData.dueDate,
         number: formData.number,
-        status: 'entwurf',
+        status: 'draft',
         recipient: {
           name: formData.recipient.name,
           street: formData.recipient.street,
@@ -770,18 +747,17 @@ export default function NeueRechnungPage() {
           id: generateId(),
           description: pos.description,
           quantity: Number(pos.quantity),
-          unitPrice: Number(pos.price),
-          taxRate: Number(pos.vat),
-          amount: Number(pos.quantity) * Number(pos.price)
+          unitPrice: Number(pos.unitPrice),
+          taxRate: Number(pos.taxRate),
+          totalNet: Number(pos.totalNet),
+          totalGross: Number(pos.totalGross)
         })) || [],
         notes: formData.notes,
-        discount: totals.discountAmount,
-        discountType: formData.discount?.type,
-        discountValue: formData.discount?.value,
-        totalNet: totals.netTotal,
-        totalGross: totals.grossTotal,
-        vatAmount: totals.totalVat,
-        vatAmounts: totals.vatAmounts
+        discount: formData.discount ? {
+          type: formData.discount.type,
+          value: Number(formData.discount.value)
+        } : undefined,
+        ...totals
       };
 
       const savedInvoice = await db.createInvoice(invoice);
@@ -1249,11 +1225,13 @@ export default function NeueRechnungPage() {
                 <td className="py-2 px-2">
                   <div className="flex justify-end">
                     <div className="relative w-24">
-                      <input
+                      <Input
                         type="number"
+                        min="0"
+                        step="1"
                         value={position.quantity}
                         onChange={(e) => handlePositionChange(index, 'quantity', e.target.value)}
-                        className="w-full text-right pr-8 p-2 border rounded"
+                        className="text-right pr-8"
                       />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col gap-px">
                         <button 
@@ -1279,20 +1257,15 @@ export default function NeueRechnungPage() {
                 <td className="py-2 px-2">
                   <div className="flex justify-end">
                     <div className="relative w-32">
-                      <input
-                        type="text"
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
                         inputMode="decimal"
-                        value={position.price ? position.price.toLocaleString('de-DE', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2,
-                          useGrouping: false // Deaktiviert Tausendertrennzeichen
-                        }) : ''}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          handlePositionChange(index, 'price', value);
-                        }}
-                        className="w-full text-right pr-6 p-2 border rounded"
-                        placeholder="0,00"
+                        value={typeof position.unitPrice === 'number' && position.unitPrice > 0 ? position.unitPrice : ''}
+                        onChange={(e) => handlePositionChange(index, 'unitPrice', e.target.value)}
+                        className="text-right pr-6"
+                        placeholder="0.00"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">€</span>
                     </div>
@@ -1301,13 +1274,13 @@ export default function NeueRechnungPage() {
                 <td className="py-2 px-2">
                   <div className="flex justify-end">
                     <Select
-                      value={position.vat.toString()}
-                      onValueChange={(value) => handlePositionChange(index, 'vat', value)}
+                      value={String(position.taxRate || 19)}
+                      onValueChange={(value) => handlePositionChange(index, 'taxRate', value)}
                     >
                       <SelectTrigger className="w-32 text-right rounded-md">
                         <SelectValue placeholder="MwSt. wählen" />
                       </SelectTrigger>
-                      <SelectContent align="end">
+                      <SelectContent>
                         <SelectItem value="19">19%</SelectItem>
                         <SelectItem value="7">7%</SelectItem>
                         <SelectItem value="0">0%</SelectItem>
@@ -1316,17 +1289,13 @@ export default function NeueRechnungPage() {
                   </div>
                 </td>
                 <td className="py-2 pl-2 text-right font-medium whitespace-nowrap">
-                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(calculatePositionAmount(position))}
+                  {formatCurrency(position.totalGross || 0)}
                 </td>
                 <td className="py-2 pl-2 w-10">
                   <Button
                     variant="ghost"
                     className="text-red-500 hover:text-red-700 rounded-md"
-                    onClick={() => {
-                      const newPositions = [...formData.positions || []];
-                      newPositions.splice(index, 1);
-                      updateFormData({ ...formData, positions: newPositions });
-                    }}
+                    onClick={() => removePosition(index)}
                   >
                     <XIcon className="h-4 w-4" />
                   </Button>
@@ -1361,41 +1330,48 @@ export default function NeueRechnungPage() {
         )}
       </div>
 
-      {/* 
-        WICHTIG: Diese Komponente wurde am 02.01.2025 finalisiert.
-        Bitte keine Änderungen vornehmen, es sei denn, es wird explizit danach gefragt.
-        Änderungen könnten die Darstellung der Rechnung und die Betragsberechnungen beeinflussen.
-      */}
-      <div className="mt-8 text-right">
-        <div className="space-y-2 w-full ">
-          <div className="flex justify-between items-center">
-            <span>Gesamtsumme Netto:</span>
-            <span className="inline-block w-32 text-right ">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</span>
+      {/* Summen */}
+      <div className="flex flex-col gap-2 items-end mt-8">
+        {/* Zwischensumme (Summe aller Positionen) */}
+        <div className="flex gap-4 items-center justify-end w-full max-w-md">
+          <span className="text-sm text-gray-600">Zwischensumme:</span>
+          <span className="font-medium">{formatCurrency(totals.netTotal)}</span>
+        </div>
+
+        {/* Rabatt */}
+        {formData.discount && (
+          <div className="flex gap-4 items-center justify-end w-full max-w-md">
+            <span className="text-sm text-gray-600">
+              Rabatt ({formData.discount.type === 'percentage' ? `${formData.discount.value}%` : 'Fixbetrag'}):
+            </span>
+            <span className="font-medium text-red-600">-{formatCurrency(totals.discountAmount)}</span>
           </div>
-          
-          {formData.discount && (
-            <div className="flex justify-between items-center text-red-600">
-              <span>Rabatt {formData.discount.type === 'percentage' ? `(${formData.discount.value}%)` : ''}:</span>
-              <span className="inline-block w-32 text-right ">-{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.discountAmount)}</span>
-            </div>
-          )}
-          
-          {Object.keys(totals.vatAmounts).map(vatRate => (
-            <div key={vatRate} className="flex justify-between items-center">
-              <span>MwSt {vatRate}%:</span>
-              <span className="inline-block w-32 text-right ">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.vatAmounts[vatRate])}</span>
-            </div>
-          ))}
-          
-          <div className="flex justify-between items-center font-bold border-t pt-2">
-            <span>Gesamt:</span>
-            <span className="inline-block w-32 text-right ">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</span>
+        )}
+
+        {/* Gesamtsumme Netto (nach Rabatt) */}
+        <div className="flex gap-4 items-center justify-end w-full max-w-md">
+          <span className="text-sm text-gray-600">Gesamtsumme Netto:</span>
+          <span className="font-medium">{formatCurrency(totals.netAfterDiscount)}</span>
+        </div>
+
+        {/* MwSt Aufschlüsselung */}
+        {Object.entries(totals.vatAmounts).map(([rate, amount]) => (
+          <div key={rate} className="flex gap-4 items-center justify-end w-full max-w-md">
+            <span className="text-sm text-gray-600">MwSt. {rate}%:</span>
+            <span className="font-medium">{formatCurrency(amount)}</span>
           </div>
+        ))}
+
+        {/* Gesamtsumme Brutto */}
+        <div className="flex gap-4 items-center justify-end w-full max-w-md border-t border-gray-200 pt-2 mt-2">
+          <span className="text-sm font-medium">Gesamtsumme Brutto:</span>
+          <span className="font-bold text-lg">{formatCurrency(totals.grossTotal)}</span>
         </div>
       </div>
 
+      {/* Rabatt-Dialog */}
       {showDiscountDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
             <h3 className="text-lg font-semibold mb-4">Rabatt hinzufügen</h3>
             <div className="space-y-4">
@@ -1423,7 +1399,25 @@ export default function NeueRechnungPage() {
                   className="w-full p-2 border rounded"
                   placeholder={discountType === 'percentage' ? 'z.B. 10' : 'z.B. 100'}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-px">
+                  <button 
+                    onClick={() => setDiscountValue(String(Number(discountValue) + 1))}
+                    className="hover:bg-gray-100 rounded p-0.5"
+                  >
+                    <svg className="w-3 h-3 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button 
+                    onClick={() => setDiscountValue(String(Math.max(0, Number(discountValue) - 1)))}
+                    className="hover:bg-gray-100 rounded p-0.5"
+                  >
+                    <svg className="w-3 h-3 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </span>
+                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-500">
                   {discountType === 'percentage' ? '%' : '€'}
                 </span>
               </div>
@@ -1438,7 +1432,7 @@ export default function NeueRechnungPage() {
               </Button>
               <Button
                 type="button"
-                onClick={handleDiscountSubmit}
+                onClick={() => handleDiscountSubmit(discountType, Number(discountValue))}
               >
                 Hinzufügen
               </Button>
@@ -1481,27 +1475,8 @@ export default function NeueRechnungPage() {
 interface InvoicePosition {
   description: string;
   quantity: number;
-  price: number;
-  vat: number;
-  amount: number;
+  unitPrice: number;
+  taxRate: number;
+  totalNet: number;
+  totalGross: number;
 }
-
-const calculatePositionAmount = (position: InvoicePosition) => {
-  if (!position.quantity || !position.price) return 0;
-  const baseAmount = position.quantity * position.price;
-  return baseAmount;
-};
-
-const addPosition = () => {
-  const newPositions = [...formData.positions, {
-    description: '',
-    quantity: 1,
-    price: 0,
-    vat: 19,
-    amount: 0
-  }];
-  updateFormData({
-    ...formData,
-    positions: newPositions
-  });
-};

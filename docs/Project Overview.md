@@ -15,6 +15,8 @@ Diese Dokumentation beschreibt das System zur Vergabe und Verwaltung von Rechnun
 - Jede neue Rechnung erhält die nächsthöhere verfügbare Nummer
 - Basis ist immer die höchste existierende Rechnungsnummer + 1
 - Beispiel: Wenn die letzte Nummer "123" war, ist die nächste "124"
+- Neue Nummern werden nur bei der Erstellung neuer Rechnungen vergeben
+- Bei der Bearbeitung bestehender Rechnungen bleibt die ursprüngliche Nummer erhalten
 
 ### 3. Speicherung und Validierung
 - Rechnungsnummern werden in der Datenbank als reine Zahlen gespeichert
@@ -29,6 +31,14 @@ Diese Dokumentation beschreibt das System zur Vergabe und Verwaltung von Rechnun
 - Jede Rechnungsnummer darf nur einmal existieren
 - Entwürfe verwenden die gleiche Nummerierung wie finale Rechnungen
 - Die Rechnungsnummer wird beim ersten Speichern festgelegt
+- Beim Bearbeiten einer Rechnung wird die ursprüngliche Nummer beibehalten
+- Neue Nummern werden ausschließlich für neue Rechnungen generiert
+
+### Bearbeitung bestehender Rechnungen
+- Die ursprüngliche Rechnungsnummer bleibt während des gesamten Lebenszyklus erhalten
+- Auch bei mehrfacher Bearbeitung wird die Nummer nicht geändert
+- Die Nummer ist unveränderlich, sobald sie einmal vergeben wurde
+- Dies gewährleistet die Nachverfolgbarkeit und Konsistenz der Rechnungen
 
 ### Technische Implementierung
 
@@ -301,3 +311,174 @@ const loadInvoiceData = async () => {
    - Klare Fehlermeldungen anzeigen
    - Automatische Korrekturen kommunizieren
    - Einfache Navigation zwischen Bearbeitung und Vorschau
+
+## PDF-Generierung und Rabattberechnung
+
+### Beteiligte Dateien
+
+#### 1. PDF-Generierung
+- `src/app/api/invoice/pdf/route.ts`
+  - Hauptdatei für die PDF-Generierung
+  - Verwendet Puppeteer für die HTML-zu-PDF-Konvertierung
+  - Enthält das HTML-Template und CSS-Styles für das PDF-Layout
+  - Verarbeitet die Rabattberechnung und -darstellung im PDF
+
+#### 2. Rabattberechnung
+- `src/lib/invoice-utils.ts`
+  - Enthält die Logik für die Berechnung von Rabatten
+  - Berechnet Zwischensummen, Rabattbeträge und Mehrwertsteuer
+  - Unterstützt prozentuale und fixe Rabatte
+
+#### 3. Vorschau und Übergabe
+- `src/app/(dashboard)/rechnungen/[id]/preview/page.tsx`
+  - Zeigt die Rechnungsvorschau an
+  - Übergibt die Rechnungsdaten an die PDF-Generierung
+  - Stellt die Rabattinformationen in der Vorschau dar
+
+### Funktionsweise
+
+#### 1. Rabattberechnung
+- **Rabatttypen**:
+  - Prozentualer Rabatt (z.B. 20%)
+  - Fixer Rabatt (z.B. 100€)
+- **Berechnungsablauf**:
+  1. Berechnung der Zwischensumme aus allen Positionen
+  2. Anwendung des Rabatts (prozentual oder fix)
+  3. Berechnung des Nettobetrags nach Rabatt
+  4. Berechnung der Mehrwertsteuer auf den rabattierten Nettobetrag
+  5. Ermittlung des Bruttobetrags
+
+#### 2. PDF-Generierung
+- **Prozess**:
+  1. Empfang der Rechnungsdaten via POST-Request
+  2. Berechnung der finalen Beträge
+  3. Generierung des HTML-Templates mit Styles
+  4. Konvertierung zu PDF mittels Puppeteer
+  5. Rückgabe des PDF-Dokuments
+
+- **Layout-Struktur**:
+  1. Kopfbereich mit Logo und Absenderinformationen
+  2. Empfänger- und Rechnungsinformationen
+  3. Positionstabelle mit voller Breite
+  4. Summenbereich mit Rabattanzeige
+  5. Fußbereich mit Zahlungsinformationen
+
+#### 3. Darstellung des Rabatts
+- **PDF-Format**:
+  ```
+  Zwischensumme:         3.835,00 €
+  Rabatt (20%):           -767,00 €
+  Gesamtbetrag netto:    3.068,00 €
+  Umsatzsteuer 19%:        582,92 €
+  Gesamtbetrag brutto:   3.650,92 €
+  ```
+
+### Technische Details
+
+#### 1. CSS-Struktur
+- Verwendung von flexiblen Breiten für responsive Darstellung
+- Prozentuale Aufteilung der Spaltenbreiten
+- Spezielle Formatierung für Rabattzeilen (rot)
+- Einheitliche Ausrichtung von Zahlen und Text
+
+#### 2. Datenübergabe
+```typescript
+{
+  invoice: {
+    ...invoice,
+    discount: {
+      type: 'percentage' | 'fixed',
+      value: number
+    },
+    vatAmounts: { [rate: string]: number },
+    totalVat: number,
+    totalNet: number,
+    totalGross: number,
+    discountAmount: number,
+    netAfterDiscount: number
+  },
+  settings: {
+    // Firmeneinstellungen
+  }
+}
+```
+
+### Wartung und Erweiterung
+
+#### 1. Neue Rabatttypen hinzufügen
+1. Erweitern Sie den Rabatttyp in `invoice-utils.ts`
+2. Aktualisieren Sie die Berechnungslogik
+3. Passen Sie die Darstellung in der PDF-Vorlage an
+
+#### 2. Layout-Anpassungen
+1. Ändern Sie die CSS-Styles in `route.ts`
+2. Testen Sie die Änderungen mit verschiedenen Datenkonstellationen
+3. Stellen Sie sicher, dass die Darstellung konsistent bleibt
+
+## Rabattsystem
+
+### 1. Rabattstruktur
+- Rabatte werden als Objekt gespeichert mit zwei Eigenschaften:
+  ```typescript
+  {
+    type: 'percentage' | 'fixed',  // Art des Rabatts
+    value: number                  // Wert (Prozent oder Fixbetrag)
+  }
+  ```
+
+### 2. Speicherung in der Datenbank
+- Rabatte werden in der Rechnung als `discount`-Objekt gespeichert
+- Beispiel für einen 10% Rabatt:
+  ```typescript
+  discount: {
+    type: 'percentage',
+    value: 10
+  }
+  ```
+- Beispiel für einen Fixrabatt von 100€:
+  ```typescript
+  discount: {
+    type: 'fixed',
+    value: 100
+  }
+  ```
+
+### 3. Berechnung des Rabatts
+- Die Berechnung erfolgt in `invoice-utils.ts`
+- Prozentrabatt: `netTotal * (rabattProzent / 100)`
+- Fixrabatt: direkter Abzug des Fixbetrags
+- Der Rabatt wird vor der Mehrwertsteuer abgezogen
+
+### 4. Anzeige in der Vorschau
+- Der Rabatt wird unter der Zwischensumme angezeigt
+- Bei Prozentrabatt: Anzeige als "Rabatt (10%)"
+- Bei Fixrabatt: Anzeige als "Rabatt (Fixbetrag)"
+- Der Rabattbetrag wird in rot und mit Minuszeichen dargestellt
+
+### 5. Technische Details
+- Neue Rechnungen (`/rechnungen/neu`):
+  ```typescript
+  discount: formData.discount ? {
+    type: formData.discount.type,
+    value: Number(formData.discount.value)
+  } : undefined
+  ```
+
+- Vorschau (`/rechnungen/draft_temp/preview`):
+  ```typescript
+  foundInvoice.discount = {
+    type: foundInvoice.discountType || foundInvoice.discount?.type || 'fixed',
+    value: Number(foundInvoice.discountValue || foundInvoice.discount?.value || 0)
+  }
+  ```
+
+### 6. PDF-Generierung
+- Der Rabatt wird in der PDF-Rechnung im Summenbereich angezeigt
+- Format: "Rabatt (Art): -Betrag"
+- Die Gesamtsummen werden entsprechend angepasst
+
+### 7. Wichtige Hinweise
+- Rabatte werden nur angezeigt, wenn der Wert größer als 0 ist
+- Die Berechnung erfolgt immer auf Basis des Netto-Gesamtbetrags
+- Alle Berechnungen werden serverseitig validiert
+- Die Rabattinformationen werden beim Speichern und Laden der Rechnung automatisch konvertiert

@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
-import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import { calculateInvoiceTotals } from '@/lib/invoice-utils';
 
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
     const { invoice, settings } = data;
 
+    // Debug-Ausgabe
+    console.log('Empfangene Rechnungsdaten:', {
+      invoice: {
+        ...invoice,
+        discount: invoice.discount
+      },
+      settings
+    });
+
     // Berechne die korrekten Totals
     const totals = calculateInvoiceTotals(invoice);
+
+    // Debug-Ausgabe
+    console.log('Berechnete Totals:', totals);
 
     // Starte Puppeteer
     const browser = await puppeteer.launch({
@@ -42,6 +54,8 @@ export async function POST(req: NextRequest) {
               color: #333;
               line-height: 1.4;
               font-weight: 300;
+              width: 100%;
+              box-sizing: border-box;
             }
             .logo-container {
               text-align: right;
@@ -114,13 +128,23 @@ export async function POST(req: NextRequest) {
               text-align: left;
               border-bottom: 1px solid #ddd;
               padding: 8px 16px 8px 0;
-              font-weight: 400;
+              font-weight: 600;
             }
-            .positions th.price {
+            .positions th:first-child {
+              width: 5%;
+            }
+            .positions th:nth-child(2) {
+              width: 45%;
+            }
+            .positions th:nth-child(3) {
+              width: 15%;
+            }
+            .positions th:nth-child(4) {
+              width: 15%;
               text-align: right;
-              padding-right: 4px;
             }
-            .positions td.price {
+            .positions th:last-child {
+              width: 20%;
               text-align: right;
               padding-right: 0;
             }
@@ -128,25 +152,38 @@ export async function POST(req: NextRequest) {
               padding: 8px 4px;
               vertical-align: top;
             }
+            .positions td.price {
+              text-align: right;
+              padding-right: 0;
+            }
             .totals {
               margin-top: 2rem;
               text-align: right;
+              width: 100%;
             }
             .totals-table {
-              width: 300px;
-              margin-left: auto;
+              width: 100%;
               border-collapse: collapse;
             }
             .totals td:first-child {
-              text-align: right;
+              text-align: left;
               padding-right: 16px;
-              font-weight: 300;
+              font-weight: 400;
+              width: 85%;
             }
             .totals td:last-child {
               text-align: right;
               font-weight: 400;
+              width: 15%;
             }
-            .totals tr:last-child {
+            .totals tr.discount td:last-child {
+              color: #dc2626;
+            }
+            .totals tr.total-line {
+              border-top: 1px solid #ddd;
+            }
+            .totals tr.total-line td {
+              padding-top: 8px;
               font-weight: 600;
             }
             .payment-note {
@@ -173,139 +210,151 @@ export async function POST(req: NextRequest) {
           </style>
         </head>
         <body>
-          <div class="header-container">
-            <!-- Logo -->
-            <div class="logo-container">
-              <img class="logo" src="${settings.logo || 'data:image/png;base64,iVBORw...'}" alt="Logo">
-            </div>
-
-            <!-- Absender und QR-Code -->
-            <div class="header-flex">
-              <div class="header-address">
-                ${settings.companyName} - ${settings.street} - ${settings.zip} ${settings.city}
+          <div class="container">
+            <div class="header-container">
+              <!-- Logo -->
+              <div class="logo-container">
+                <img class="logo" src="${settings.logo || 'data:image/png;base64,iVBORw...'}" alt="Logo">
               </div>
-              <img 
-                class="qr-code"
-                src="https://api.qrserver.com/v1/create-qr-code/?size=56x56&data=https://example.com/invoices/${invoice.id}"
-                alt="QR Code"
-              />
-            </div>
-          </div>
 
-          <!-- Empfänger und Meta-Informationen -->
-          <div class="recipient-meta-container">
-            <!-- Empfänger -->
-            <div class="recipient">
-              ${invoice.recipient?.name ? `<p>${invoice.recipient.name}</p>` : ''}
-              ${invoice.recipient?.street ? `<p>${invoice.recipient.street}</p>` : ''}
-              ${invoice.recipient?.zip || invoice.recipient?.city ? `<p>${invoice.recipient?.zip || ''} ${invoice.recipient?.city || ''}</p>` : ''}
-              ${invoice.recipient?.country ? `<p>${invoice.recipient.country}</p>` : ''}
+              <!-- Absender und QR-Code -->
+              <div class="header-flex">
+                <div class="header-address">
+                  ${settings.companyName} - ${settings.street} - ${settings.zip} ${settings.city}
+                </div>
+                <img 
+                  class="qr-code"
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=56x56&data=https://example.com/invoices/${invoice.id}"
+                  alt="QR Code"
+                />
+              </div>
             </div>
 
-            <!-- Rechnungsinformationen -->
-            <table class="meta-info">
-              ${invoice.number ? `
-              <tr>
-                <td><strong>Rechnungs-Nr.</strong></td>
-                <td><strong>${invoice.number.padStart(4, '0')}</strong></td>
-              </tr>` : ''}
-              ${invoice.date ? `
-              <tr>
-                <td>Rechnungsdatum</td>
-                <td>${new Date(invoice.date).toLocaleDateString('de-DE')}</td>
-              </tr>` : ''}
-              ${invoice.date ? `
-              <tr>
-                <td>Lieferdatum</td>
-                <td>${new Date(invoice.date).toLocaleDateString('de-DE')}</td>
-              </tr>` : ''}
-              ${invoice.customerNumber ? `
-              <tr>
-                <td>Ihre Kundennummer</td>
-                <td>${invoice.customerNumber}</td>
-              </tr>` : ''}
-              ${settings.owner ? `
-              <tr>
-                <td>Ihr Ansprechpartner</td>
-                <td>${settings.owner}</td>
-              </tr>` : ''}
+            <!-- Empfänger und Meta-Informationen -->
+            <div class="recipient-meta-container">
+              <!-- Empfänger -->
+              <div class="recipient">
+                ${invoice.recipient?.name ? `<p>${invoice.recipient.name}</p>` : ''}
+                ${invoice.recipient?.street ? `<p>${invoice.recipient.street}</p>` : ''}
+                ${invoice.recipient?.zip || invoice.recipient?.city ? `<p>${invoice.recipient?.zip || ''} ${invoice.recipient?.city || ''}</p>` : ''}
+                ${invoice.recipient?.country ? `<p>${invoice.recipient.country}</p>` : ''}
+              </div>
+
+              <!-- Rechnungsinformationen -->
+              <table class="meta-info">
+                ${invoice.number ? `
+                <tr>
+                  <td><strong>Rechnungs-Nr.</strong></td>
+                  <td><strong>${invoice.number.padStart(4, '0')}</strong></td>
+                </tr>` : ''}
+                ${invoice.date ? `
+                <tr>
+                  <td>Rechnungsdatum</td>
+                  <td>${new Date(invoice.date).toLocaleDateString('de-DE')}</td>
+                </tr>` : ''}
+                ${invoice.date ? `
+                <tr>
+                  <td>Lieferdatum</td>
+                  <td>${new Date(invoice.date).toLocaleDateString('de-DE')}</td>
+                </tr>` : ''}
+                ${invoice.customerNumber ? `
+                <tr>
+                  <td>Ihre Kundennummer</td>
+                  <td>${invoice.customerNumber}</td>
+                </tr>` : ''}
+                ${settings.owner ? `
+                <tr>
+                  <td>Ihr Ansprechpartner</td>
+                  <td>${settings.owner}</td>
+                </tr>` : ''}
 
  
-            </table>
-          </div>
+              </table>
+            </div>
 
-          <h1 class="invoice-title">Rechnung Nr. ${invoice.number?.padStart(4, '0')}</h1>
+            <h1 class="invoice-title">Rechnung Nr. ${invoice.number?.padStart(4, '0')}</h1>
 
-          <!-- Positionen -->
-          <table class="positions">
-            <tr>
-              <th style="width: 5%">Pos.</th>
-              <th style="width: 45%">Beschreibung</th>
-              <th style="width: 15%">Menge</th>
-              <th class="price" style="width: 15%">Einzelpreis</th>
-              <th class="price" style="width: 20%">Gesamtpreis</th>
-            </tr>
-            <tbody>
-              ${invoice.positions.map((pos, index) => `
-                <tr>
-                  <td>${index + 1}.</td>
-                  <td>${pos.description}</td>
-                  <td>${pos.quantity} Tag(e)</td>
-                  <td class="price">${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(pos.unitPrice)}</td>
-                  <td class="price">${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(pos.quantity * pos.unitPrice)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <!-- Summen -->
-          <div class="totals">
-            <table class="totals-table">
+            <!-- Positionen -->
+            <table class="positions">
               <tr>
-                <td>Gesamtbetrag netto</td>
-                <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</td>
+                <th>Pos.</th>
+                <th>Beschreibung</th>
+                <th>Menge</th>
+                <th class="price">Einzelpreis</th>
+                <th class="price">Gesamtpreis</th>
               </tr>
-              ${Object.entries(totals.vatAmounts).map(([rate, amount]) => `
-                <tr>
-                  <td>Umsatzsteuer ${rate}%</td>
-                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount)}</td>
-                </tr>
-              `).join('')}
-              <tr class="total-line">
-                <td>Gesamtbetrag brutto</td>
-                <td><strong>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</strong></td>
-              </tr>
+              <tbody>
+                ${invoice.positions.map((pos, index) => `
+                  <tr>
+                    <td>${index + 1}.</td>
+                    <td>${pos.description}</td>
+                    <td>${pos.quantity} Tag(e)</td>
+                    <td class="price">${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(pos.unitPrice)}</td>
+                    <td class="price">${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(pos.quantity * pos.unitPrice)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
             </table>
-          </div>
 
-          <!-- Zahlungshinweis -->
-          <div class="payment-note">
-            Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen
-            auf das unten angegebene Konto.
-          </div>
+            <!-- Summen -->
+            <div class="totals">
+              <table class="totals-table">
+                <tr>
+                  <td>Zwischensumme:</td>
+                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</td>
+                </tr>
+                ${invoice.discount && invoice.discount.value > 0 ? `
+                  <tr class="discount">
+                    <td>Rabatt (${invoice.discount.value}${invoice.discount.type === 'percentage' ? '%' : ' €'}):</td>
+                    <td>-${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.discountAmount)}</td>
+                  </tr>
+                ` : ''}
+                <tr>
+                  <td>Gesamtbetrag netto:</td>
+                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netAfterDiscount)}</td>
+                </tr>
+                ${Object.entries(totals.vatAmounts).map(([rate, amount]) => `
+                  <tr>
+                    <td>Umsatzsteuer ${rate}%:</td>
+                    <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount)}</td>
+                  </tr>
+                `).join('')}
+                <tr class="total-line">
+                  <td>Gesamtbetrag brutto:</td>
+                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</td>
+                </tr>
+              </table>
+            </div>
 
-          <!-- Footer -->
-          <div class="footer">
-            <div>
-              ${settings.companyName ? `<p>${settings.companyName}</p>` : ''}
-              ${settings.street ? `<p>${settings.street}</p>` : ''}
-              ${settings.zip || settings.city ? `<p>${settings.zip || ''} ${settings.city || ''}</p>` : ''}
-              ${settings.country ? `<p>${settings.country}</p>` : ''}
+            <!-- Zahlungshinweis -->
+            <div class="payment-note">
+              Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen
+              auf das unten angegebene Konto.
             </div>
-            <div>
-              ${settings.phone ? `<p>Tel.: ${settings.phone}</p>` : ''}
-              ${settings.email ? `<p>E-Mail: ${settings.email}</p>` : ''}
-              ${settings.website ? `<p>Web: ${settings.website}</p>` : ''}
-            </div>
-            <div>
-              ${settings.taxId ? `<p>USt-ID: ${settings.taxId}</p>` : ''}
-              ${settings.vatId ? `<p>Steuer-Nr.: ${settings.vatId}</p>` : ''}
-              ${settings.owner ? `<p>Inhaber/-in: ${settings.owner}</p>` : ''}
-            </div>
-            <div>
-              ${settings.bankDetails?.bankName ? `<p>Bank: ${settings.bankDetails.bankName}</p>` : ''}
-              ${settings.bankDetails?.iban ? `<p>IBAN: ${settings.bankDetails.iban}</p>` : ''}
-              ${settings.bankDetails?.bic ? `<p>BIC: ${settings.bankDetails.bic}</p>` : ''}
+
+            <!-- Footer -->
+            <div class="footer">
+              <div>
+                ${settings.companyName ? `<p>${settings.companyName}</p>` : ''}
+                ${settings.street ? `<p>${settings.street}</p>` : ''}
+                ${settings.zip || settings.city ? `<p>${settings.zip || ''} ${settings.city || ''}</p>` : ''}
+                ${settings.country ? `<p>${settings.country}</p>` : ''}
+              </div>
+              <div>
+                ${settings.phone ? `<p>Tel.: ${settings.phone}</p>` : ''}
+                ${settings.email ? `<p>E-Mail: ${settings.email}</p>` : ''}
+                ${settings.website ? `<p>Web: ${settings.website}</p>` : ''}
+              </div>
+              <div>
+                ${settings.taxId ? `<p>USt-ID: ${settings.taxId}</p>` : ''}
+                ${settings.vatId ? `<p>Steuer-Nr.: ${settings.vatId}</p>` : ''}
+                ${settings.owner ? `<p>Inhaber/-in: ${settings.owner}</p>` : ''}
+              </div>
+              <div>
+                ${settings.bankDetails?.bankName ? `<p>Bank: ${settings.bankDetails.bankName}</p>` : ''}
+                ${settings.bankDetails?.iban ? `<p>IBAN: ${settings.bankDetails.iban}</p>` : ''}
+                ${settings.bankDetails?.bic ? `<p>BIC: ${settings.bankDetails.bic}</p>` : ''}
+              </div>
             </div>
           </div>
         </body>

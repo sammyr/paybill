@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { InvoicePDF } from '@/components/invoice/InvoicePDF';
 import type { Invoice } from '@/lib/db/interfaces';
+import { calculateInvoiceTotals, formatCurrency } from '@/lib/invoice-utils';
 
 interface InvoicePosition {
   id: string;
@@ -44,7 +45,10 @@ interface InvoiceDraft {
   totalGross: number;
   vatAmount?: number;
   vatAmounts?: { [key: string]: number };
-  discount?: number;
+  discount?: {
+    type: 'percentage' | 'fixed';
+    value: number;
+  };
   discountType?: 'percentage' | 'fixed';
   discountValue?: number;
   notes?: string;
@@ -91,6 +95,32 @@ function InvoicePreviewContent() {
           router.push('/rechnungen');
           return;
         }
+
+        // Stelle sicher, dass die Rabattstruktur korrekt ist
+        if (foundInvoice.discount || foundInvoice.discountType) {
+          foundInvoice.discount = {
+            type: foundInvoice.discountType || foundInvoice.discount?.type || 'fixed',
+            value: Number(foundInvoice.discountValue || foundInvoice.discount?.value || 0)
+          };
+
+          // Debug-Ausgabe für Fehlersuche
+          console.log('Rabatt in der Vorschau:', {
+            original: foundInvoice.discount,
+            type: foundInvoice.discountType,
+            value: foundInvoice.discountValue
+          });
+
+          // Lösche alte Felder
+          delete foundInvoice.discountType;
+          delete foundInvoice.discountValue;
+        }
+
+        // Berechne die Gesamtsummen neu
+        const totals = calculateInvoiceTotals(foundInvoice);
+        foundInvoice.totalNet = totals.netTotal;
+        foundInvoice.totalGross = totals.grossTotal;
+        foundInvoice.vatAmount = totals.totalVat;
+        foundInvoice.vatAmounts = totals.vatAmounts;
 
         setInvoice(foundInvoice);
         

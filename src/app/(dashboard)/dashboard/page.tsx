@@ -141,145 +141,147 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-      
-      {/* Übersichtskarten */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Gesamtumsatz</p>
-              <h3 className="text-2xl font-bold">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.totalRevenue)}</h3>
-            </div>
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <BanknoteIcon className="h-6 w-6 text-primary" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Offene Rechnungen</p>
-              <h3 className="text-2xl font-bold">{data.openInvoices}</h3>
-            </div>
-            <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
-              <ClockIcon className="h-6 w-6 text-yellow-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Bezahlte Rechnungen</p>
-              <h3 className="text-2xl font-bold">{data.paidInvoices}</h3>
-            </div>
-            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircleIcon className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Ø Rechnungsbetrag</p>
-              <h3 className="text-2xl font-bold">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.averageInvoiceAmount)}</h3>
-            </div>
-            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-              <TrendingUpIcon className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Neueste Rechnungen */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Neueste Rechnungen</h2>
-          <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <div className="space-y-4">
-          {data.recentInvoices.map((invoice) => (
-            <div key={invoice.id} className="flex items-center justify-between border-b pb-2">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 space-y-6">
+      <div className="container mx-auto relative">
+        {/* Hintergrund-Blur-Effekte */}
+        <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute -top-20 -right-20 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-20 left-20 w-72 h-72 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+        
+        <h1 className="text-3xl font-bold mb-8 text-gray-800 relative">Dashboard</h1>
+        
+        {/* Übersichtskarten */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">{invoice.recipient?.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(invoice.date).toLocaleDateString('de-DE')}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Gesamtumsatz</p>
+                <h3 className="text-2xl font-bold text-gray-800">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.totalRevenue)}</h3>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded-full text-xs ${invoice.paid ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                  {invoice.paid ? 'Bezahlt' : 'Offen'}
-                </span>
-                <span className="font-medium">
-                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(calculateInvoiceTotal(invoice))}
-                </span>
+              <div className="h-12 w-12 rounded-full bg-primary/10 backdrop-blur-sm flex items-center justify-center">
+                <BanknoteIcon className="h-6 w-6 text-primary" />
               </div>
             </div>
-          ))}
-        </div>
-      </Card>
+          </div>
 
-      {/* Top Kunden */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Top Kunden</h2>
-          <UsersIcon className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <div className="space-y-4">
-          {data.topCustomers.map(([name, revenue], index) => (
-            <div key={name} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
-                  {index + 1}
-                </span>
-                <span className="font-medium">{name}</span>
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Offene Rechnungen</p>
+                <h3 className="text-2xl font-bold text-gray-800">{data.openInvoices}</h3>
               </div>
-              <span className="font-medium">
-                {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
-              </span>
+              <div className="h-12 w-12 rounded-full bg-yellow-100/50 backdrop-blur-sm flex items-center justify-center">
+                <ClockIcon className="h-6 w-6 text-yellow-600" />
+              </div>
             </div>
-          ))}
-        </div>
-      </Card>
+          </div>
 
-      {/* Monatliche Umsätze */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Monatliche Umsätze</h2>
-          <BarChart3Icon className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <div className="h-64 space-y-4">
-          {data.monthlyRevenue.map(({ month, revenue }) => {
-            const maxRevenue = Math.max(...data.monthlyRevenue.map(m => m.revenue));
-            const percentage = (revenue / maxRevenue) * 100;
-            const isHighest = revenue === maxRevenue;
-            
-            return (
-              <div key={month} className="flex items-center gap-4">
-                <span className="w-20 text-sm text-muted-foreground">
-                  {new Date(month + '-01').toLocaleDateString('de-DE', { month: 'short', year: '2-digit' })}
-                </span>
-                <div className="flex-1 h-4 bg-primary/10 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-500 ease-out ${isHighest ? 'bg-primary' : 'bg-primary/60'}`}
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-                <div className="w-32 flex items-center justify-end gap-2">
-                  <span className="font-medium">
-                    {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
-                  </span>
-                  {isHighest && <ArrowUpIcon className="h-4 w-4 text-primary" />}
-                </div>
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Bezahlte Rechnungen</p>
+                <h3 className="text-2xl font-bold text-gray-800">{data.paidInvoices}</h3>
               </div>
-            );
-          })}
+              <div className="h-12 w-12 rounded-full bg-green-100/50 backdrop-blur-sm flex items-center justify-center">
+                <CheckCircleIcon className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Ø Rechnungsbetrag</p>
+                <h3 className="text-2xl font-bold text-gray-800">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.averageInvoiceAmount)}</h3>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-100/50 backdrop-blur-sm flex items-center justify-center">
+                <TrendingUpIcon className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
         </div>
-      </Card>
+
+        {/* Neueste Rechnungen */}
+        <div className="mt-8">
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-800">Neueste Rechnungen</h2>
+            </div>
+            <div className="space-y-4">
+              {data.recentInvoices.map((invoice) => (
+                <div key={invoice.id} className="flex items-center justify-between p-4 rounded-xl bg-white/50 backdrop-blur-sm border border-white/50 transition-all duration-300 hover:bg-white/70">
+                  <div className="flex items-center space-x-4">
+                    <div className="h-10 w-10 rounded-full bg-gray-100/50 flex items-center justify-center">
+                      <CalendarIcon className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-800">{invoice.recipient?.name || 'Unbekannter Kunde'}</p>
+                      <p className="text-sm text-gray-500">Rechnung #{invoice.number}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-gray-800">
+                      {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(calculateInvoiceTotal(invoice))}
+                    </p>
+                    <p className="text-sm text-gray-500">{new Date(invoice.date).toLocaleDateString('de-DE')}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Statistiken Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+          {/* Top Kunden */}
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-800">Top Kunden</h2>
+            </div>
+            <div className="space-y-4">
+              {data.topCustomers.map(([customer, revenue], index) => (
+                <div key={customer} className="flex items-center justify-between p-4 rounded-xl bg-white/50 backdrop-blur-sm border border-white/50">
+                  <div className="flex items-center space-x-4">
+                    <div className="h-10 w-10 rounded-full bg-gray-100/50 flex items-center justify-center">
+                      <UsersIcon className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <span className="font-medium text-gray-800">{customer}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-gray-800">
+                      {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Monatliche Umsätze */}
+          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-800">Monatliche Umsätze</h2>
+            </div>
+            <div className="space-y-4">
+              {data.monthlyRevenue.map(({ month, revenue }) => (
+                <div key={month} className="flex items-center justify-between p-4 rounded-xl bg-white/50 backdrop-blur-sm border border-white/50">
+                  <div className="flex items-center space-x-4">
+                    <div className="h-10 w-10 rounded-full bg-gray-100/50 flex items-center justify-center">
+                      <BarChart3Icon className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <span className="font-medium text-gray-800">{new Date(month).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-gray-800">
+                      {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

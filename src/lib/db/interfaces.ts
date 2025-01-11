@@ -34,12 +34,12 @@ export interface Contact {
 }
 
 export interface Invoice {
-  id: string;
-  number: string;
-  date: Date;
-  dueDate: Date;
-  status: 'entwurf' | 'ausstehend' | 'bezahlt' | 'storniert';
-  recipient: {
+  id?: string;
+  number?: string;
+  date?: string;
+  dueDate?: string;
+  status?: string;
+  recipient?: {
     name: string;
     street?: string;
     zip?: string;
@@ -49,17 +49,26 @@ export interface Invoice {
     phone?: string;
     taxId?: string;
   };
-  positions: InvoiceItem[];
+  positions: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+    totalNet?: number;
+    totalGross?: number;
+  }>;
   totalNet: number;
   totalGross: number;
-  vatAmount?: number;
-  vatAmounts?: { [key: string]: number };
-  discount?: number;
-  discountType?: 'percentage' | 'fixed';
-  discountValue?: number;
+  vatAmounts: { [key: string]: number };
+  totalVat: number;
+  discount?: {
+    type: 'percentage' | 'fixed';
+    value: number;
+  };
   notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface InvoiceItem {

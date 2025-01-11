@@ -22,51 +22,22 @@
 
 import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
-import './InvoicePDF.css';
+import { 
+  calculateInvoiceTotals, 
+  formatCurrency, 
+  type Invoice, 
+  type InvoiceTotals, 
+  calculatePositionTotals 
+} from '@/lib/invoice-utils';
 
 interface InvoicePDFProps {
-  invoice: {
-    id?: string;
-    number?: string;
-    date?: string;
-    dueDate?: string;
-    recipient?: any;
-    positions: Array<{
-      id: string;
-      description: string;
-      quantity: number;
-      unitPrice: number;
-      taxRate: number;
-      amount: number;
-    }>;
-    totalNet: number;
-    totalGross: number;
-    vatAmounts?: { [key: string]: number };
-    totalVat: number;
-    discount?: number;
-    discountType?: 'percentage' | 'fixed';
-    discountValue?: number;
-    discountAmount?: number;
-    notes?: string;
-    status?: string;
-    customerNumber?: string;
-    contactPerson?: string;
-  };
+  invoice: Invoice;
   settings: any;
   mode?: 'preview' | 'print';
 }
 
 export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode = 'preview' }) => {
-  const totals = calculateInvoiceTotals(invoice);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('de-DE', { 
-      style: 'currency', 
-      currency: 'EUR',
-      minimumFractionDigits: 2
-    }).format(value);
-  };
+  const totals: InvoiceTotals = calculateInvoiceTotals(invoice);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -187,80 +158,63 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                   </thead>
                   <tbody className="text-sm">
                     {invoice.positions.map((position, index) => {
-                      const quantity = position.quantity;
-                      const unitPrice = position.unitPrice;
-                      const positionTotal = position.amount;
-
+                      const { totalNet } = calculatePositionTotals(position);
                       return (
                         <tr key={position.id || index}>
                           <td className="py-2">{index + 1}.</td>
                           <td className="py-2">{position.description}</td>
-                          <td className="text-right py-2">{quantity.toFixed(2)} Tag(e)</td>
-                          <td className="text-right py-2">{formatCurrency(unitPrice)}</td>
-                          <td className="text-right py-2">{formatCurrency(positionTotal)}</td>
+                          <td className="text-right py-2">{position.quantity.toFixed(2)} Tag(e)</td>
+                          <td className="text-right py-2">{formatCurrency(position.unitPrice)}</td>
+                          <td className="text-right py-2">{formatCurrency(totalNet)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
 
-                {/* Summen in separater Tabelle */}
+                {/* Summentabelle */}
                 <table className="w-full mt-8">
-                  <tbody>
-                    {/* 
-                      @ai-protected-section
-                      @warning KEINE ÄNDERUNGEN AN DER BETRAGSBERECHNUNG ODER FORMATIERUNG!
-                      Die Darstellung der Beträge folgt den deutschen Buchhaltungsstandards.
-                      Format: Währung: de-DE, EUR, 2 Dezimalstellen
-                      @reason Gesetzliche Anforderungen an die Rechnungsstellung
-                    */}
+                  <tbody className="text-sm">
+                    {/* Zwischensumme */}
                     <tr>
-                      <td className="text-right py-2">Gesamtbetrag netto</td>
-                      <td className="text-right py-2 w-32">{formatCurrency(totals.netTotal)}</td>
+                      <td className="py-1">Zwischensumme:</td>
+                      <td className="text-right">{formatCurrency(totals.netTotal)}</td>
                     </tr>
 
-                    {invoice.discountAmount > 0 && (
+                    {/* Rabatt */}
+                    {invoice.discount && invoice.discount.value > 0 && (
                       <tr>
-                        <td className="text-right py-2 text-red-600">
-                          Rabatt {invoice.discountType === 'percentage' ? `(${invoice.discountValue}%)` : ''}
+                        <td className="py-1">
+                          Rabatt ({invoice.discount.type === 'percentage' ? `${invoice.discount.value}%` : `${formatCurrency(invoice.discount.value)}`}):
                         </td>
-                        <td className="text-right py-2 text-red-600 w-32">
-                          -{formatCurrency(totals.discountAmount)}
-                        </td>
+                        <td className="text-right text-red-600">-{formatCurrency(totals.discountAmount)}</td>
                       </tr>
                     )}
 
-                    {/* 
-                      @ai-protected-section
-                      @warning KEINE ÄNDERUNGEN AN DER MWST-BERECHNUNG UND SORTIERUNG!
-                      Die MwSt-Sätze müssen in absteigender Reihenfolge angezeigt werden (19% vor 7%).
-                      Format: Prozentsatz: Ganzzahl, Betrag: de-DE, EUR, 2 Dezimalstellen
-                      @reason Gesetzliche Anforderungen an die MwSt-Ausweisung
-                    */}
-                    {Object.entries(totals.vatAmounts)
-                      .sort((a, b) => Number(b[0]) - Number(a[0]))
-                      .map(([rate, amount]) => (
-                        <tr key={rate}>
-                          <td className="text-right py-2">Umsatzsteuer {rate}%</td>
-                          <td className="text-right py-2 w-32">{formatCurrency(amount)}</td>
-                        </tr>
-                    ))}
+                    {/* Netto nach Rabatt */}
+                    <tr>
+                      <td className="py-1">Gesamtbetrag netto:</td>
+                      <td className="text-right">{formatCurrency(totals.netAfterDiscount)}</td>
+                    </tr>
 
-                    {/* 
-                      @ai-protected-section
-                      @warning KEINE ÄNDERUNGEN AN DER BRUTTOBETRAGSBERECHNUNG!
-                      Der Bruttobetrag muss die Summe aus Netto, abzüglich Rabatt, plus MwSt sein.
-                      Format: de-DE, EUR, 2 Dezimalstellen
-                      @reason Gesetzliche Anforderungen an die Rechnungsstellung
-                    */}
-                    <tr className="font-bold border-t">
-                      <td className="text-right py-2">Gesamtbetrag brutto</td>
-                      <td className="text-right py-2 w-32">
-                        {formatCurrency(totals.grossTotal)}
-                      </td>
+                    {/* MwSt */}
+                    <tr>
+                      <td className="py-1">Umsatzsteuer {Object.keys(totals.vatAmounts)[0]}%:</td>
+                      <td className="text-right">{formatCurrency(totals.totalVat)}</td>
+                    </tr>
+
+                    {/* Brutto */}
+                    <tr className="font-bold">
+                      <td className="pt-2 border-t">Gesamtbetrag brutto:</td>
+                      <td className="pt-2 border-t text-right">{formatCurrency(totals.grossTotal)}</td>
                     </tr>
                   </tbody>
                 </table>
+
+                {/* Zahlungsbedingungen */}
+                <div className="mt-8 text-sm">
+                  <p>Bitte überweisen Sie den Gesamtbetrag innerhalb von 14 Tagen.</p>
+                </div>
 
                 {/* Fußtext */}
                 <div className="text-sm">

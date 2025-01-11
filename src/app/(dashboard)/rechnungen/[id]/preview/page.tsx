@@ -21,7 +21,8 @@ interface InvoicePosition {
   quantity: number;
   unitPrice: number;
   taxRate: number;
-  amount: number;
+  totalNet: number;
+  totalGross: number;
 }
 
 interface InvoiceDraft {
@@ -73,6 +74,27 @@ export default function InvoicePreviewPage() {
           if (parsedDraft.number) {
             parsedDraft.number = parsedDraft.number.replace(/^0+/, '');
           }
+
+          // Konvertiere die Rabattinformationen in das richtige Format
+          if (parsedDraft.discountType || parsedDraft.discountValue) {
+            parsedDraft.discount = {
+              type: parsedDraft.discountType || 'fixed',
+              value: Number(parsedDraft.discountValue || 0)
+            };
+            // Lösche die alten Felder
+            delete parsedDraft.discountType;
+            delete parsedDraft.discountValue;
+          }
+
+          // Berechne die Gesamtbeträge für jede Position neu
+          if (parsedDraft.positions) {
+            parsedDraft.positions = parsedDraft.positions.map(pos => ({
+              ...pos,
+              totalNet: pos.quantity * pos.unitPrice,
+              totalGross: pos.quantity * pos.unitPrice * (1 + (pos.taxRate / 100))
+            }));
+          }
+
           setInvoice(parsedDraft);
         }
         
@@ -124,11 +146,13 @@ export default function InvoicePreviewPage() {
         body: JSON.stringify({
           invoice: {
             ...invoice,
+            discount: invoice.discount,  // Explizit den Rabatt übergeben
             vatAmounts: totals.vatAmounts,
             totalVat: totals.totalVat,
             totalNet: totals.netTotal,
             totalGross: totals.grossTotal,
-            discountAmount: totals.discountAmount
+            discountAmount: totals.discountAmount,
+            netAfterDiscount: totals.netAfterDiscount
           },
           settings
         })
@@ -368,18 +392,23 @@ export default function InvoicePreviewPage() {
       </div>
 
       <div id="invoice-container" className="bg-white p-8 rounded-lg print:shadow-none min-h-[297mm] relative">
-        <InvoicePDF 
-          invoice={{
-            ...invoice,
-            vatAmounts: totals.vatAmounts,
-            totalVat: totals.totalVat,
-            totalNet: totals.netTotal,
-            totalGross: totals.grossTotal,
-            discountAmount: totals.discountAmount
-          }} 
-          settings={settings} 
-          mode="preview" 
-        />
+        {!isLoading && invoice && settings && (
+          <div className="w-full max-w-4xl mx-auto bg-white shadow-lg">
+            <InvoicePDF 
+              invoice={{
+                ...invoice,
+                discount: invoice.discount,  // Explizit den Rabatt übergeben
+                vatAmounts: totals.vatAmounts,
+                totalVat: totals.totalVat,
+                totalNet: totals.netTotal,
+                totalGross: totals.grossTotal,
+                discountAmount: totals.discountAmount,
+                netAfterDiscount: totals.netAfterDiscount
+              }} 
+              settings={settings}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
