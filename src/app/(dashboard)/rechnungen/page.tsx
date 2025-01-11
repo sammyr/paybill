@@ -337,7 +337,7 @@ export default function RechnungenPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/rechnungen/neu?id=${invoice.id}`)}
+                      onClick={() => router.push(`/rechnungen/neu?id=${invoice.id}&number=${invoice.number || invoice.displayNumber}`)}
                       title="Bearbeiten"
                     >
                       <Pencil className="w-4 h-4" />

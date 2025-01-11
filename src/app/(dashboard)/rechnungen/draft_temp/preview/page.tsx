@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -53,7 +53,7 @@ interface InvoiceDraft {
   updatedAt: Date;
 }
 
-export default function InvoicePreviewPage() {
+function InvoicePreviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [invoice, setInvoice] = useState<InvoiceDraft | null>(null);
@@ -201,33 +201,28 @@ export default function InvoicePreviewPage() {
     return <div>Lade Rechnung...</div>;
   }
 
-  if (!invoice) {
-    return <div>Rechnung nicht gefunden</div>;
+  if (!invoice || !settings) {
+    return null;
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Rechnung #{invoice.number}</h1>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={handleBack}>
-            <ArrowLeftIcon className="w-4 h-4 mr-2" />
-            Zurück
+    <div className="container mx-auto p-4 print:p-0">
+      <div className="flex justify-between items-center mb-4 print:hidden">
+        <Button variant="outline" size="icon" onClick={handleBack}>
+          <ArrowLeftIcon className="h-4 w-4" />
+        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={handlePrint}>
+            <PrinterIcon className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={handlePrint}>
-            <PrinterIcon className="w-4 h-4 mr-2" />
-            Drucken
+          <Button variant="outline" size="icon" onClick={handleDownload}>
+            <DownloadIcon className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={handleDownload}>
-            <DownloadIcon className="w-4 h-4 mr-2" />
-            PDF
-          </Button>
-          <Button variant="outline" onClick={handleEmail}>
-            <MailIcon className="w-4 h-4 mr-2" />
-            E-Mail
+          <Button variant="outline" size="icon" onClick={handleEmail}>
+            <MailIcon className="h-4 w-4" />
           </Button>
           <Button onClick={handleSave}>
-            <SaveIcon className="w-4 h-4 mr-2" />
+            <SaveIcon className="h-4 w-4 mr-2" />
             Finalisieren
           </Button>
         </div>
@@ -235,5 +230,13 @@ export default function InvoicePreviewPage() {
 
       <InvoicePDF invoice={invoice} settings={settings} />
     </div>
+  );
+}
+
+export default function InvoicePreviewPage() {
+  return (
+    <Suspense fallback={<div>Lade Rechnung...</div>}>
+      <InvoicePreviewContent />
+    </Suspense>
   );
 }

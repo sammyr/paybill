@@ -198,8 +198,9 @@ export default function NeueRechnungPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      // Hole die Rechnungsnummer aus der URL
+      // Hole die Rechnungsnummer und ID aus der URL
       const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get('id');
       let number = urlParams.get('number');
       
       // Lösche vorherige Draft-Daten
@@ -208,19 +209,55 @@ export default function NeueRechnungPage() {
 
       const db = getDatabase();
 
-      // Wenn keine Nummer in der URL ist, hole eine neue und aktualisiere die URL
-      if (!number) {
+      // Wenn eine ID vorhanden ist, lade die bestehende Rechnung
+      if (id) {
+        try {
+          const invoice = await db.getInvoice(id);
+          if (invoice) {
+            // Verwende die existierende Nummer
+            number = invoice.number;
+            
+            // Stelle sicher, dass alle Positionen die erforderlichen Felder haben
+            const positions = invoice.positions?.map(pos => ({
+              description: pos.description || '',
+              quantity: pos.quantity || 0,
+              price: pos.price || 0,
+              vat: pos.vat ?? 19, // Setze 19% als Standard-MwSt wenn nicht definiert
+              amount: pos.amount || (pos.quantity || 0) * (pos.price || 0)
+            })) || [];
+
+            // Aktualisiere das Formular mit den Rechnungsdaten
+            updateFormData({
+              ...defaultFormData,
+              ...invoice,
+              positions,
+              number: number
+            });
+          }
+        } catch (error) {
+          console.error('Fehler beim Laden der Rechnung:', error);
+          toast({
+            title: "Fehler",
+            description: "Die Rechnung konnte nicht geladen werden.",
+            variant: "destructive"
+          });
+        }
+      }
+      // Wenn keine Nummer vorhanden ist (weder in URL noch von bestehender Rechnung)
+      else if (!number) {
         number = await db.getNextInvoiceNumberPublic();
         // Aktualisiere die URL ohne Neuladen der Seite
         const newUrl = `${window.location.pathname}?number=${number}`;
         window.history.pushState({ path: newUrl }, '', newUrl);
       }
       
-      // Aktualisiere das Formular mit der Nummer
-      updateFormData(prev => ({
-        ...prev,
-        number: number
-      }));
+      // Aktualisiere das Formular mit der Nummer, falls noch nicht geschehen
+      if (!id) {
+        updateFormData(prev => ({
+          ...prev,
+          number: number
+        }));
+      }
 
       // Lade Kontakte
       try {
@@ -296,8 +333,15 @@ export default function NeueRechnungPage() {
       position[field] = parseFloat(numericValue) || 0;
     } else if (field === 'quantity') {
       position[field] = parseInt(value) || 0;
+    } else if (field === 'vat') {
+      position[field] = parseFloat(value) || 19; // Standard-MwSt wenn ungültig
     } else {
       position[field] = value;
+    }
+
+    // Stelle sicher, dass vat immer gesetzt ist
+    if (typeof position.vat === 'undefined') {
+      position.vat = 19; // Standard-MwSt
     }
 
     // Berechne den Gesamtbetrag für die Position
