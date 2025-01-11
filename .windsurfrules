@@ -1,0 +1,36 @@
+1. entferne in der bearbeitung von bestehden Dateien keine funktion wenn diese nicht gewünscht sind
+2. ändere nur das wonach du gefragt wirst
+3. entferne keine funktionen wenn nicht darum gebeten wird
+4. modularisiere das projekt
+
+
+
+## Übersicht
+Diese Dokumentation beschreibt das System zur Vergabe und Verwaltung von Rechnungsnummern in der Paybill-Anwendung.
+
+## Grundprinzipien
+
+### 1. Rechnungsnummern-Format
+- Rechnungsnummern sind reine Zahlen ohne führende Nullen
+- Beispiel: "123", "124", "125"
+- Keine Präfixe oder Suffixe
+- Keine speziellen Zeichen oder Trennzeichen
+
+### 2. Automatische Nummerierung
+- Jede neue Rechnung erhält die nächsthöhere verfügbare Nummer
+- Basis ist immer die höchste existierende Rechnungsnummer + 1
+- Beispiel: Wenn die letzte Nummer "123" war, ist die nächste "124"
+
+### 3. Speicherung und Validierung
+- Rechnungsnummern werden in der Datenbank als reine Zahlen gespeichert
+- Bei der Eingabe werden alle nicht-numerischen Zeichen entfernt
+- Führende Nullen werden automatisch entfernt
+- Duplikate werden verhindert durch Prüfung auf Existenz
+
+## Rechnungsnummern-System
+
+### Grundprinzipien
+- Rechnungsnummern sind fortlaufende Zahlen ohne führende Nullen
+- Jede Rechnungsnummer darf nur einmal existieren
+- Entwürfe verwenden die gleiche Nummerierung wie finale Rechnungen
+- Die Rechnungsnummer wird beim ersten Speichern festgelegt

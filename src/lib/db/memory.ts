@@ -135,13 +135,40 @@ class MemoryDatabase implements DatabaseInterface {
      * @example "5183"
      * @warning KEINE Präfixe oder Suffixe hinzufügen!
      */
-    if (this.invoices.length === 0) {
-      return '1001'; // Startnummer
+    
+    // Hole alle existierenden Rechnungsnummern (inkl. Entwürfe)
+    const existingNumbers = this.invoices
+      .map(inv => parseInt(inv.number.replace(/\D/g, '')))
+      .filter(num => !isNaN(num));
+
+    if (existingNumbers.length === 0) {
+      return '1001'; // Startnummer wenn keine Rechnungen existieren
     }
 
-    // Finde die höchste Rechnungsnummer
-    const maxNumber = Math.max(...this.invoices.map(inv => parseInt(inv.number)));
+    // Finde die höchste existierende Nummer
+    const maxNumber = Math.max(...existingNumbers);
+    
+    // Nächste Nummer generieren (4-stellig mit führenden Nullen)
     return (maxNumber + 1).toString().padStart(4, '0');
+  }
+
+  // Öffentliche Methode zum Prüfen einer Rechnungsnummer
+  private isInvoiceNumberValid(number: string): boolean {
+    // Entferne alle nicht-numerischen Zeichen
+    const cleanNumber = number.replace(/\D/g, '');
+    
+    // Prüfe ob die Nummer eine 4-stellige Zahl ist
+    if (!/^\d{4}$/.test(cleanNumber)) {
+      return false;
+    }
+    
+    // Prüfe ob die Nummer bereits existiert
+    return !this.invoices.some(inv => inv.number === cleanNumber);
+  }
+
+  // Öffentliche Methode zum Bereinigen einer Rechnungsnummer
+  private cleanInvoiceNumber(number: string): string {
+    return number.replace(/\D/g, '').padStart(4, '0');
   }
 
   async getNextInvoiceNumberPublic(): Promise<string> {
@@ -201,9 +228,26 @@ class MemoryDatabase implements DatabaseInterface {
 
   // Invoices
   async createInvoice(data: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice> {
+    // Wenn eine Nummer übergeben wurde, bereinige und validiere sie
+    if (data.number) {
+      const cleanNumber = this.cleanInvoiceNumber(data.number);
+      
+      // Prüfe ob die Nummer gültig ist
+      if (!this.isInvoiceNumberValid(cleanNumber)) {
+        throw new Error(`Rechnungsnummer ${cleanNumber} ist ungültig oder existiert bereits`);
+      }
+      
+      data.number = cleanNumber;
+    } else {
+      // Generiere eine neue Nummer wenn keine übergeben wurde
+      data.number = this.getNextInvoiceNumber();
+    }
+
+    // Erstelle die neue Rechnung
     const invoice: Invoice = {
       id: crypto.randomUUID(),
       ...data,
+      status: data.status || 'entwurf',
       createdAt: new Date(),
       updatedAt: new Date(),
       totalNet: data.totalNet || 0,
@@ -213,6 +257,7 @@ class MemoryDatabase implements DatabaseInterface {
       notes: data.notes || ''
     };
 
+    // Speichere die Rechnung
     this.invoices.push(invoice);
     this.saveInvoices();
     return invoice;

@@ -69,119 +69,23 @@ export default function InvoicePreviewPage() {
         const draftData = localStorage.getItem(`invoice_draft_${invoiceId}`);
         if (draftData) {
           const parsedDraft = JSON.parse(draftData);
-          
-          // Generiere Rechnungsnummer für neue Rechnungen
-          if (!parsedDraft.number) {
-            /**
-             * @important RECHNUNGSNUMMER-FORMAT
-             * Das Format der Rechnungsnummer MUSS immer eine vierstellige Zahl sein (z.B. "5183").
-             * Dieses Format ist fest definiert und darf NICHT geändert werden, da:
-             * 1. Es für die Buchhaltung und Archivierung essentiell ist
-             * 2. Externe Systeme darauf aufbauen
-             * 3. Die Rechnungsnummer in dieser Form rechtlich bindend ist
-             * 
-             * @format XXXX (X = Ziffer von 0-9)
-             * @example "5183"
-             */
-            parsedDraft.number = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+          // Entferne führende Nullen von der Rechnungsnummer
+          if (parsedDraft.number) {
+            parsedDraft.number = parsedDraft.number.replace(/^0+/, '');
           }
-          
-          // Berechne die Preise für jede Position
-          if (parsedDraft.positions) {
-            console.log('Originale Positionen:', parsedDraft.positions);
-            parsedDraft.positions = parsedDraft.positions.map(pos => {
-              // Setze Standardpreise basierend auf der Beschreibung
-              const unitPrice = pos.description.toLowerCase().includes('webentwicklung') ? 85 : 75;
-              const quantity = parseFloat(pos.quantity?.toString() || '0');
-              
-              // Debug-Ausgabe für jede Position
-              console.log('Position vor Verarbeitung:', pos);
-              
-              const updatedPosition = {
-                ...pos,
-                unitPrice: pos.unitPrice || unitPrice,
-                totalNet: quantity * (pos.unitPrice || unitPrice),
-                taxRate: pos.vat || pos.taxRate || 19 // Versuche zuerst vat, dann taxRate, sonst 19%
-              };
-              
-              // Debug-Ausgabe nach der Verarbeitung
-              console.log('Position nach Verarbeitung:', updatedPosition);
-              
-              return updatedPosition;
-            });
-          }
-          
-          // Berechne Gesamtbeträge
-          const totals = {
-            netTotal: 0,
-            vatAmount: 0,
-            grossTotal: 0,
-            discountAmount: 0
-          };
-
-          // Berechne Netto-Gesamtbetrag aus den Positionen
-          totals.netTotal = parsedDraft.positions.reduce((sum, pos) => {
-            const quantity = parseFloat(pos.quantity?.toString() || '0');
-            const unitPrice = parseFloat(pos.unitPrice?.toString() || '0');
-            return sum + (quantity * unitPrice);
-          }, 0);
-
-          // Berechne Rabatt
-          if (parsedDraft.discount && parsedDraft.discountValue) {
-            totals.discountAmount = parsedDraft.discountType === 'percentage'
-              ? (totals.netTotal * (parseFloat(parsedDraft.discountValue.toString()) / 100))
-              : parseFloat(parsedDraft.discountValue.toString());
-          }
-
-          // Berechne MwSt und Brutto
-          const netAfterDiscount = totals.netTotal - totals.discountAmount;
-          totals.vatAmount = netAfterDiscount * 0.19; // 19% MwSt
-          totals.grossTotal = netAfterDiscount + totals.vatAmount;
-
-          // Runde alle Beträge auf 2 Dezimalstellen
-          Object.keys(totals).forEach(key => {
-            totals[key] = Number(totals[key].toFixed(2));
-          });
-
-          // Aktualisiere die Rechnungsdaten
-          const updatedInvoice = {
-            ...parsedDraft,
-            positions: parsedDraft.positions,
-            totalNet: totals.netTotal,
-            vatAmount: totals.vatAmount,
-            totalGross: totals.grossTotal,
-            vatAmounts: { "19": totals.vatAmount },
-            discountAmount: totals.discountAmount,
-            status: parsedDraft.status || 'entwurf' as const,
-            createdAt: parsedDraft.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          
-          // Speichere aktualisierte Daten zurück in localStorage
-          localStorage.setItem(`invoice_draft_${invoiceId}`, JSON.stringify(updatedInvoice));
-          
-          setInvoice(updatedInvoice);
-        } else {
-          const db = getDatabase();
-          const invoiceData = await db.getInvoice(invoiceId);
-          if (invoiceData) {
-            setInvoice(invoiceData);
-          } else {
-            throw new Error("Keine Rechnungsdaten gefunden");
-          }
+          setInvoice(parsedDraft);
         }
-
-        // Lade die Einstellungen
+        
+        // Lade Einstellungen
         const db = getDatabase();
         const loadedSettings = await db.getSettings();
         setSettings(loadedSettings);
-
       } catch (error) {
-        console.error("Fehler beim Laden der Rechnung:", error);
+        console.error('Fehler beim Laden der Rechnungsdaten:', error);
         toast({
-          variant: "destructive",
           title: "Fehler",
-          description: error instanceof Error ? error.message : "Rechnung konnte nicht geladen werden"
+          description: "Die Rechnungsdaten konnten nicht geladen werden.",
+          variant: "destructive"
         });
       } finally {
         setIsLoading(false);

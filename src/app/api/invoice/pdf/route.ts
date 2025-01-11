@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
             .header-address {
               color: #666;
               font-size: 9pt;
-          
+              font-weight: 300;
             }
             .header-container {
               margin-bottom: 2rem;

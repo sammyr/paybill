@@ -71,6 +71,7 @@ interface FormData {
     type: 'percentage' | 'fixed';
     value: number;
   };
+  number: string;
 }
 
 const defaultFormData: FormData = {
@@ -120,7 +121,8 @@ const defaultFormData: FormData = {
     iban: 'DE89 3704 0044 0532 0130 00',
     bic: 'COBADEFFXXX',
     bankName: 'Commerzbank'
-  }
+  },
+  number: ''
 };
 
 const useInvoiceFormStorage = () => {
@@ -195,13 +197,47 @@ export default function NeueRechnungPage() {
   }, [formData.date, paymentDays]);
 
   useEffect(() => {
-    const loadContacts = async () => {
+    const loadData = async () => {
+      // Hole die Rechnungsnummer aus der URL
+      const urlParams = new URLSearchParams(window.location.search);
+      let number = urlParams.get('number');
+      
+      // Lösche vorherige Draft-Daten
+      localStorage.removeItem('lastEditedInvoice');
+      localStorage.removeItem(`invoice_draft_${'draft_temp'}`);
+
       const db = getDatabase();
-      const loadedContacts = await db.listContacts();
-      setContacts(loadedContacts);
+
+      // Wenn keine Nummer in der URL ist, hole eine neue und aktualisiere die URL
+      if (!number) {
+        number = await db.getNextInvoiceNumberPublic();
+        // Aktualisiere die URL ohne Neuladen der Seite
+        const newUrl = `${window.location.pathname}?number=${number}`;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+      }
+      
+      // Aktualisiere das Formular mit der Nummer
+      updateFormData(prev => ({
+        ...prev,
+        number: number
+      }));
+
+      // Lade Kontakte
+      try {
+        const loadedContacts = await db.listContacts();
+        setContacts(loadedContacts);
+      } catch (error) {
+        console.error('Fehler beim Laden der Kontakte:', error);
+        toast({
+          title: "Fehler",
+          description: "Kontakte konnten nicht geladen werden.",
+          variant: "destructive"
+        });
+      }
     };
-    loadContacts();
-  }, []); // Keine Dependencies, da wir die Kontakte nur einmal laden müssen
+
+    loadData();
+  }, []);
 
   useEffect(() => {
     if (!formData.contactId) return;
@@ -486,29 +522,14 @@ export default function NeueRechnungPage() {
       const db = getDatabase();
       
       // Berechne Gesamtbeträge
-      const netTotal = formData.positions.reduce((sum, pos) => sum + (Number(pos.quantity) * Number(pos.price)), 0);
-      const vatAmount = netTotal * 0.19;
-      
-      // Berechne Rabatt wenn vorhanden
-      let discountAmount = 0;
-      if (formData.discount) {
-        if (formData.discount.type === 'percentage') {
-          discountAmount = netTotal * (Number(formData.discount.value) / 100);
-        } else {
-          discountAmount = Number(formData.discount.value);
-        }
-      }
-      
-      const discountedNet = netTotal - discountAmount;
-      const vatAfterDiscount = discountedNet * 0.19;
-      const grossTotal = discountedNet + vatAfterDiscount;
+      const totals = calculateTotals(formData.positions, formData.discount);
 
       // Erstelle neue Rechnung
-      const invoice: Omit<Invoice, 'id' | 'number' | 'createdAt' | 'updatedAt'> = {
+      const invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> = {
         date: formData.date,
         dueDate: formData.dueDate,
-        number: await db.getNextInvoiceNumber(), // Rechnungsnummer hinzugefügt
-        contactId: formData.contactId,
+        number: formData.number,
+        status: 'entwurf',
         recipient: {
           name: formData.recipient.name,
           street: formData.recipient.street,
@@ -528,23 +549,39 @@ export default function NeueRechnungPage() {
           amount: Number(pos.quantity) * Number(pos.price)
         })) || [],
         notes: formData.notes,
-        status: 'draft',
-        // Rabatt-Informationen hinzufügen
-        discount: discountAmount,
+        discount: totals.discountAmount,
         discountType: formData.discount?.type,
         discountValue: formData.discount?.value,
-        // Gesamtbeträge
-        totalNet: netTotal,
-        totalGross: grossTotal,
-        vatAmount: vatAfterDiscount,
-        vatRate: 19
+        totalNet: totals.netTotal,
+        totalGross: totals.grossTotal,
+        vatAmount: totals.totalVat,
+        vatAmounts: totals.vatAmounts
       };
 
-      const savedInvoice = await db.createInvoice(invoice);
-      console.log('Rechnung gespeichert:', savedInvoice);
-
-      // Navigiere zur Preview-Seite
-      router.push(`/rechnungen/${savedInvoice.id}/preview`);
+      try {
+        const savedInvoice = await db.createInvoice(invoice);
+        console.log('Rechnung gespeichert:', savedInvoice);
+        
+        // Lösche temporäre Daten
+        localStorage.removeItem('invoiceFormData');
+        localStorage.removeItem('lastEditedInvoice');
+        
+        // Navigiere zur Preview-Seite mit Rechnungsnummer
+        router.push(`/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
+      } catch (error) {
+        if (error.message?.includes('existiert bereits')) {
+          // Hole eine neue Nummer und versuche es erneut
+          const nextNumber = await db.getNextInvoiceNumberPublic();
+          invoice.number = nextNumber;
+          // Aktualisiere die URL
+          const newUrl = `${window.location.pathname}?number=${nextNumber}`;
+          window.history.pushState({ path: newUrl }, '', newUrl);
+          const savedInvoice = await db.createInvoice(invoice);
+          router.push(`/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
+        } else {
+          throw error;
+        }
+      }
       
     } catch (error) {
       console.error('Fehler beim Speichern:', error);
@@ -620,60 +657,151 @@ export default function NeueRechnungPage() {
     }
   };
 
-  const handlePreview = () => {
-    // Hole aktuelle Formulardaten
-    const currentFormData = formData;
-    
-    // Generiere eine temporäre ID für den Entwurf
-    const draftId = 'draft_temp';
-    
-    // Berechne die Gesamtbeträge
-    const totals = calculateTotals(formData.positions, formData.discount);
-    
-    // Bereite die Positionen mit Preisen vor
-    const positionsWithPrices = formData.positions.map(pos => ({
-      ...pos,
-      quantity: parseFloat(pos.quantity?.toString() || '0'),
-      unitPrice: parseFloat(pos.unitPrice?.toString() || '0'),
-      totalNet: parseFloat(pos.quantity?.toString() || '0') * parseFloat(pos.unitPrice?.toString() || '0')
-    }));
-    
-    // Bereite die Rechnungsdaten vor
-    const invoiceData = {
-      ...currentFormData,
-      id: draftId,
-      positions: positionsWithPrices,
-      totalNet: totals.netTotal,
-      totalGross: totals.grossTotal,
-      vatAmount: totals.totalVat,
-      vatRate: 19,
-      status: 'entwurf',
-      date: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() // 14 Tage später
-    };
-    
-    // Speichere den Entwurf
-    localStorage.setItem(`invoice_draft_${draftId}`, JSON.stringify(invoiceData));
-    
-    // Navigiere zur Vorschau
-    router.push(`/rechnungen/${draftId}/preview`);
+  // Funktion zum temporären Speichern der Rechnung
+  const saveDraft = async () => {
+    try {
+      const db = getDatabase();
+      const totals = calculateTotals(formData.positions, formData.discount);
+
+      // Prüfe ob die Rechnungsnummer bereits existiert
+      const existingInvoices = await db.listInvoices();
+      const existingInvoice = existingInvoices.find(inv => 
+        inv.number.replace(/^0+/, '') === formData.number.replace(/^0+/, '')
+      );
+
+      // Wenn die Rechnung bereits existiert, aktualisiere sie
+      if (existingInvoice) {
+        const updatedInvoice = await db.updateInvoice(existingInvoice.id, {
+          date: formData.date,
+          dueDate: formData.dueDate,
+          number: formData.number,
+          status: 'entwurf',
+          recipient: {
+            name: formData.recipient.name,
+            street: formData.recipient.street,
+            zip: formData.recipient.zip,
+            city: formData.recipient.city,
+            country: formData.recipient.country || 'Deutschland',
+            email: formData.recipient.email,
+            phone: formData.recipient.phone,
+            taxId: formData.recipient.taxId
+          },
+          positions: formData.positions?.map(pos => ({
+            id: generateId(),
+            description: pos.description,
+            quantity: Number(pos.quantity),
+            unitPrice: Number(pos.price),
+            taxRate: Number(pos.vat),
+            amount: Number(pos.quantity) * Number(pos.price)
+          })) || [],
+          notes: formData.notes,
+          discount: totals.discountAmount,
+          discountType: formData.discount?.type,
+          discountValue: formData.discount?.value,
+          totalNet: totals.netTotal,
+          totalGross: totals.grossTotal,
+          vatAmount: totals.totalVat,
+          vatAmounts: totals.vatAmounts
+        });
+        return updatedInvoice;
+      }
+
+      // Erstelle eine neue Rechnung
+      const invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'> = {
+        date: formData.date,
+        dueDate: formData.dueDate,
+        number: formData.number,
+        status: 'entwurf',
+        recipient: {
+          name: formData.recipient.name,
+          street: formData.recipient.street,
+          zip: formData.recipient.zip,
+          city: formData.recipient.city,
+          country: formData.recipient.country || 'Deutschland',
+          email: formData.recipient.email,
+          phone: formData.recipient.phone,
+          taxId: formData.recipient.taxId
+        },
+        positions: formData.positions?.map(pos => ({
+          id: generateId(),
+          description: pos.description,
+          quantity: Number(pos.quantity),
+          unitPrice: Number(pos.price),
+          taxRate: Number(pos.vat),
+          amount: Number(pos.quantity) * Number(pos.price)
+        })) || [],
+        notes: formData.notes,
+        discount: totals.discountAmount,
+        discountType: formData.discount?.type,
+        discountValue: formData.discount?.value,
+        totalNet: totals.netTotal,
+        totalGross: totals.grossTotal,
+        vatAmount: totals.totalVat,
+        vatAmounts: totals.vatAmounts
+      };
+
+      const savedInvoice = await db.createInvoice(invoice);
+      return savedInvoice;
+    } catch (error) {
+      console.error('Fehler beim Speichern des Entwurfs:', error);
+      throw error;
+    }
   };
 
-  useEffect(() => {
-    // Prüfe, ob es eine zuletzt bearbeitete Rechnung gibt
-    const lastEditedInvoice = localStorage.getItem('lastEditedInvoice');
-    if (lastEditedInvoice) {
-      const savedFormData = localStorage.getItem(`formData_${lastEditedInvoice}`);
-      if (savedFormData) {
+  // Funktion zum Anzeigen der Vorschau
+  const handlePreview = async () => {
+    try {
+      // Validiere die Rechnungsnummer
+      if (!formData.number) {
+        toast({
+          title: "Fehler",
+          description: "Keine Rechnungsnummer vorhanden",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Speichere zuerst den aktuellen Stand
+      const savedInvoice = await saveDraft();
+      
+      // Navigiere zur Vorschau
+      router.push(`/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
+    } catch (error) {
+      console.error('Fehler beim Anzeigen der Vorschau:', error);
+      // Wenn die Rechnungsnummer bereits existiert, hole eine neue
+      if (error.message?.includes('existiert bereits')) {
         try {
-          const parsedFormData = JSON.parse(savedFormData);
-          updateFormData(parsedFormData);
-        } catch (error) {
-          console.error('Fehler beim Laden der gespeicherten Rechnung:', error);
+          const db = getDatabase();
+          const nextNumber = await db.getNextInvoiceNumberPublic();
+          // Aktualisiere das Formular und die URL
+          updateFormData(prev => ({
+            ...prev,
+            number: nextNumber
+          }));
+          const newUrl = `${window.location.pathname}?number=${nextNumber}`;
+          window.history.pushState({ path: newUrl }, '', newUrl);
+          
+          toast({
+            title: "Info",
+            description: "Eine neue Rechnungsnummer wurde generiert",
+          });
+        } catch (innerError) {
+          console.error('Fehler beim Generieren einer neuen Nummer:', innerError);
+          toast({
+            title: "Fehler",
+            description: "Fehler beim Generieren einer neuen Rechnungsnummer",
+            variant: "destructive"
+          });
         }
+      } else {
+        toast({
+          title: "Fehler",
+          description: "Fehler beim Erstellen der Vorschau",
+          variant: "destructive"
+        });
       }
     }
-  }, []);
+  };
 
   if (!isClient) {
     return <div>Lade...</div>;
@@ -969,8 +1097,11 @@ export default function NeueRechnungPage() {
                 <Input
                   type="text"
                   className="w-full rounded-md border border-gray-300 p-2"
-                  value={formData.invoiceNumber}
-                  readOnly
+                  value={formData.number}
+                  onChange={(e) => updateFormData({
+                    ...formData,
+                    number: e.target.value
+                  })}
                 />
               </div>
               <div>
@@ -1040,7 +1171,7 @@ export default function NeueRechnungPage() {
           <Input
             type="text"
             className="w-full rounded-md border border-gray-300 p-2"
-            value={formData.subject || `Rechnung Nr. ${formData.invoiceNumber}`}
+            value={formData.subject || `Rechnung Nr. ${formData.number}`}
             onChange={(e) => updateFormData({ ...formData, subject: e.target.value })}
           />
         </div>
