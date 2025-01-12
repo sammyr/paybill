@@ -1,12 +1,12 @@
 import { DatabaseInterface } from './interfaces';
-import MemoryDatabase from './memory';
+import { DexieDatabase } from './dexie';
 
 // Singleton instance
 let db: DatabaseInterface | null = null;
 
 export function getDatabase(): DatabaseInterface {
   if (!db) {
-    db = new MemoryDatabase();
+    db = new DexieDatabase();
   }
   return db;
 }

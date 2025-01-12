@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus as PlusIcon, X as XIcon, Percent as PercentIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -179,7 +179,23 @@ const useInvoiceFormStorage = () => {
   return [formData, setFormData] as const;
 };
 
+// Wrapper-Komponente für useSearchParams
+function SearchParamsWrapper({ children }: { children: React.ReactNode }) {
+  const searchParams = useSearchParams();
+  return children;
+}
+
 export default function NeueRechnungPage() {
+  return (
+    <Suspense fallback={<div>Lade...</div>}>
+      <SearchParamsWrapper>
+        <InvoiceForm />
+      </SearchParamsWrapper>
+    </Suspense>
+  );
+}
+
+function InvoiceForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invoiceNumber = searchParams.get('number');
