@@ -7,7 +7,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus as PlusIcon, X as XIcon, Percent as PercentIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +32,7 @@ import {
   type Invoice as InvoiceType,
   type InvoiceTotals
 } from '@/lib/invoice-utils';
+import { NewContactDialog } from "@/components/contact/NewContactDialog";
 
 // Hilfsfunktion zur Generierung einer einfachen UUID
 function generateId() {
@@ -80,6 +81,11 @@ interface FormData {
     value: number;
   };
   number: string;
+  subject: string;
+  totalNet: number;
+  totalGross: number;
+  vatAmount: number;
+  vatAmounts: {};
 }
 
 const defaultFormData: FormData = {
@@ -133,7 +139,12 @@ const defaultFormData: FormData = {
     bic: 'COBADEFFXXX',
     bankName: 'Commerzbank'
   },
-  number: ''
+  number: '',
+  subject: '',
+  totalNet: 0,
+  totalGross: 0,
+  vatAmount: 0,
+  vatAmounts: {}
 };
 
 const useInvoiceFormStorage = () => {
@@ -170,11 +181,13 @@ const useInvoiceFormStorage = () => {
 
 export default function NeueRechnungPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invoiceNumber = searchParams.get('number');
   const [isClient, setIsClient] = useState(false);
   const [paymentDays, setPaymentDays] = useState(14);
   const [isErechnung, setIsErechnung] = useState(false);
   const { toast } = useToast();
-  const [formData, updateFormData, clearFormData] = useInvoiceFormStorage();
+  const [formData, setFormData, clearFormData] = useInvoiceFormStorage(invoiceNumber || undefined);
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [deliveryDatePopoverOpen, setDeliveryDatePopoverOpen] = useState(false);
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
@@ -200,12 +213,68 @@ export default function NeueRechnungPage() {
     if (formData.date) {
       const dueDate = new Date(formData.date);
       dueDate.setDate(dueDate.getDate() + paymentDays);
-      updateFormData({
+      setFormData({
         ...formData,
         dueDate: dueDate
       });
     }
   }, [formData.date, paymentDays]);
+
+  useEffect(() => {
+    const loadInvoiceData = async () => {
+      if (!invoiceNumber) return;
+
+      try {
+        const db = getDatabase();
+        const invoices = await db.listInvoices();
+        const invoice = invoices.find(inv => inv.number === invoiceNumber);
+
+        if (invoice) {
+          console.log('Lade Rechnung mit Nummer:', invoiceNumber);
+          console.log('Gefundene Rechnung:', invoice);
+
+          // Stelle sicher, dass der Rabatt korrekt geladen wird
+          const discount = invoice.discount || { type: 'fixed', value: 0 };
+          console.log('Geladener Rabatt:', discount);
+
+          // Konvertiere die Daten in das FormData-Format
+          const updatedFormData = {
+            ...formData,
+            id: invoice.id,
+            number: invoice.number,
+            recipient: invoice.recipient || formData.recipient,
+            positions: invoice.positions.map(pos => ({
+              description: pos.description,
+              quantity: pos.quantity,
+              unitPrice: pos.unitPrice,
+              taxRate: pos.taxRate,
+              totalNet: pos.totalNet || 0,
+              totalGross: pos.totalGross || 0
+            })),
+            date: invoice.date || formData.date,
+            dueDate: invoice.dueDate || formData.dueDate,
+            notes: invoice.notes || '',
+            discount: {
+              type: discount.type,
+              value: typeof discount.value === 'number' ? discount.value : 0
+            }
+          };
+
+          console.log('Aktualisierte Formulardaten:', updatedFormData);
+          setFormData(updatedFormData);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Rechnungsdaten:', error);
+        toast({
+          title: "Fehler",
+          description: "Die Rechnungsdaten konnten nicht geladen werden",
+          variant: "destructive"
+        });
+      }
+    };
+
+    loadInvoiceData();
+  }, [invoiceNumber]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -232,10 +301,6 @@ export default function NeueRechnungPage() {
             
             // Stelle sicher, dass alle Positionen die erforderlichen Felder haben
             const positions = invoice.positions?.map(pos => {
-              // Debug-Log für jede Position
-              console.log('Position vor Konvertierung:', pos);
-              
-              // Konvertiere alle Werte explizit in ihre korrekten Typen
               const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseFloat(String(pos.quantity)) || 0;
               const unitPrice = typeof pos.unitPrice === 'number' ? pos.unitPrice : parseFloat(String(pos.unitPrice)) || 0;
               const taxRate = typeof pos.taxRate === 'number' ? pos.taxRate : 19;
@@ -243,7 +308,7 @@ export default function NeueRechnungPage() {
               const totalNet = quantity * unitPrice;
               const totalGross = totalNet * (1 + (taxRate / 100));
               
-              const convertedPosition = {
+              return {
                 description: pos.description || '',
                 quantity: quantity,
                 unitPrice: unitPrice,
@@ -251,59 +316,46 @@ export default function NeueRechnungPage() {
                 totalNet: totalNet,
                 totalGross: totalGross
               };
-              
-              // Debug-Log für konvertierte Position
-              console.log('Position nach Konvertierung:', convertedPosition);
-              
-              return convertedPosition;
             }) || [];
 
-            // Debug-Log für alle Positionen
-            console.log('Alle konvertierten Positionen:', positions);
+            // Stelle sicher, dass der Rabatt korrekt geladen wird
+            const discount = invoice.discount || { type: 'fixed', value: 0 };
+            console.log('Geladener Rabatt:', discount); // Debug-Log
 
-            // Konvertiere den Rabatt
-            let convertedDiscount = null;
-            if (invoice.discount) {
-              convertedDiscount = {
-                type: invoice.discountType || 'fixed',
-                value: typeof invoice.discountValue === 'number' ? invoice.discountValue : parseFloat(String(invoice.discountValue)) || 0
-              };
-            }
-
-            // Aktualisiere das Formular mit den Rechnungsdaten
+            // Aktualisiere das Formular mit allen Daten
             const updatedFormData = {
-              ...defaultFormData,
-              ...invoice,
+              ...formData,
+              id: invoice.id,
+              number: invoice.number,
+              date: invoice.date,
+              dueDate: invoice.dueDate,
+              recipient: invoice.recipient || formData.recipient,
               positions: positions,
-              discount: convertedDiscount,
-              number: number
+              notes: invoice.notes || '',
+              discount: {
+                type: discount.type,
+                value: typeof discount.value === 'number' ? discount.value : 0
+              }
             };
             
             // Debug-Log für die finalen Formulardaten
             console.log('Finale Formulardaten:', updatedFormData);
             
-            updateFormData(updatedFormData);
+            setFormData(updatedFormData);
           }
         } catch (error) {
           console.error('Fehler beim Laden der Rechnung:', error);
           toast({
             title: "Fehler",
-            description: "Die Rechnung konnte nicht geladen werden.",
+            description: "Die Rechnung konnte nicht geladen werden",
             variant: "destructive"
           });
         }
       }
-      // Wenn keine Nummer vorhanden ist (weder in URL noch von bestehender Rechnung)
-      else if (!number) {
-        number = await db.getNextInvoiceNumberPublic();
-        // Aktualisiere die URL ohne Neuladen der Seite
-        const newUrl = `${window.location.pathname}?number=${number}`;
-        window.history.pushState({ path: newUrl }, '', newUrl);
-      }
       
       // Aktualisiere das Formular mit der Nummer, falls noch nicht geschehen
       if (!id) {
-        updateFormData(prev => ({
+        setFormData(prev => ({
           ...prev,
           number: number
         }));
@@ -332,7 +384,7 @@ export default function NeueRechnungPage() {
     const contact = contacts.find(c => c.id === formData.contactId);
     if (!contact) {
       // Kontakt nicht gefunden, setze zurück
-      updateFormData({
+      setFormData({
         ...formData,
         contactId: '',
         recipient: {
@@ -355,7 +407,7 @@ export default function NeueRechnungPage() {
 
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      updateFormData({
+      setFormData({
         ...formData,
         [parent]: {
           ...formData[parent],
@@ -363,7 +415,7 @@ export default function NeueRechnungPage() {
         }
       });
     } else {
-      updateFormData({
+      setFormData({
         ...formData,
         [name]: value
       });
@@ -403,7 +455,7 @@ export default function NeueRechnungPage() {
     position.totalGross = totalGross;
 
     positions[index] = position;
-    updateFormData({
+    setFormData({
       ...formData,
       positions
     });
@@ -418,7 +470,7 @@ export default function NeueRechnungPage() {
       totalNet: 0,
       totalGross: 0
     }];
-    updateFormData({
+    setFormData({
       ...formData,
       positions: newPositions
     });
@@ -427,7 +479,7 @@ export default function NeueRechnungPage() {
   const removePosition = (index: number) => {
     const positions = [...formData.positions];
     positions.splice(index, 1);
-    updateFormData({
+    setFormData({
       ...formData,
       positions
     });
@@ -438,7 +490,7 @@ export default function NeueRechnungPage() {
   };
 
   const handleDiscountSubmit = (type: 'percentage' | 'fixed', value: number) => {
-    updateFormData({
+    setFormData({
       ...formData,
       discount: {
         type,
@@ -454,7 +506,7 @@ export default function NeueRechnungPage() {
     const [street = '', cityPart = ''] = addressParts;
     const [zip = '', city = ''] = cityPart.split(' ').filter(Boolean);
 
-    updateFormData({
+    setFormData({
       ...formData,
       contactId: contact.id,
       recipient: {
@@ -633,7 +685,7 @@ export default function NeueRechnungPage() {
           recipient: emptyRecipient
         };
         
-        updateFormData(updatedFormData);
+        setFormData(updatedFormData);
         return;
       }
 
@@ -664,7 +716,7 @@ export default function NeueRechnungPage() {
           }
         };
         
-        updateFormData(updatedFormData);
+        setFormData(updatedFormData);
       }
     } catch (error) {
       console.error('Fehler beim Laden des Kontakts:', error);
@@ -768,7 +820,6 @@ export default function NeueRechnungPage() {
     }
   };
 
-  // Funktion zum Anzeigen der Vorschau
   const handlePreview = async () => {
     try {
       // Validiere die Rechnungsnummer
@@ -794,7 +845,7 @@ export default function NeueRechnungPage() {
           const db = getDatabase();
           const nextNumber = await db.getNextInvoiceNumberPublic();
           // Aktualisiere das Formular und die URL
-          updateFormData(prev => ({
+          setFormData(prev => ({
             ...prev,
             number: nextNumber
           }));
@@ -821,6 +872,86 @@ export default function NeueRechnungPage() {
         });
       }
     }
+  };
+
+  // Funktion zum Zurücksetzen des Formulars
+  const resetForm = async () => {
+    try {
+      const db = getDatabase();
+      const nextNumber = await db.getNextInvoiceNumberPublic();
+      
+      const defaultFormData: FormData = {
+        id: '',
+        contactId: '',
+        recipient: {
+          name: '',
+          street: '',
+          zip: '',
+          city: '',
+          country: 'Deutschland',
+          email: '',
+          phone: '',
+          taxId: ''
+        },
+        positions: [],
+        date: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        deliveryDate: new Date().toISOString().split('T')[0],
+        invoiceNumber: '',
+        referenceNumber: '',
+        notes: '',
+        paymentTerms: '14 Tage netto',
+        discount: {
+          type: 'fixed',
+          value: 0
+        },
+        number: nextNumber,
+        subject: '',
+        totalNet: 0,
+        totalGross: 0,
+        vatAmount: 0,
+        vatAmounts: {}
+      };
+      
+      setFormData(defaultFormData);
+
+      // Aktualisiere die URL ohne Neuladen der Seite
+      const newUrl = `${window.location.pathname}?number=${nextNumber}`;
+      window.history.pushState({ path: newUrl }, '', newUrl);
+
+    } catch (error) {
+      console.error('Fehler beim Generieren der nächsten Rechnungsnummer:', error);
+      toast({
+        title: "Fehler",
+        description: "Die nächste Rechnungsnummer konnte nicht generiert werden",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Sicherstelle, dass alle Werte definiert sind
+  const safeFormData = {
+    ...formData,
+    recipient: {
+      name: formData.recipient?.name || '',
+      street: formData.recipient?.street || '',
+      zip: formData.recipient?.zip || '',
+      city: formData.recipient?.city || '',
+      country: formData.recipient?.country || 'Deutschland',
+      email: formData.recipient?.email || '',
+      phone: formData.recipient?.phone || '',
+      taxId: formData.recipient?.taxId || ''
+    },
+    positions: formData.positions || [],
+    date: formData.date || new Date().toISOString().split('T')[0],
+    dueDate: formData.dueDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    deliveryDate: formData.deliveryDate || new Date().toISOString().split('T')[0],
+    invoiceNumber: formData.invoiceNumber || '',
+    referenceNumber: formData.referenceNumber || '',
+    notes: formData.notes || '',
+    subject: formData.subject || '',
+    number: formData.number || '',
+    discount: formData.discount || { type: 'fixed', value: 0 }
   };
 
   if (!isClient) {
@@ -906,7 +1037,7 @@ export default function NeueRechnungPage() {
               - PLZ (Input)
               - Stadt (Input)
               - Land (Select)
-              
+　　            　
               Jede nicht autorisierte Änderung könnte zu Datenverlust oder 
               Inkonsistenzen in der Kontaktverwaltung führen.
             */}
@@ -915,13 +1046,13 @@ export default function NeueRechnungPage() {
             <div>
               <div className="flex gap-2 w-full">
                 <Select
-                  defaultValue={formData.contactId}
-                  value={formData.contactId}
+                  defaultValue={safeFormData.contactId}
+                  value={safeFormData.contactId}
                   onValueChange={handleContactChange}
                 >
                   <SelectTrigger className={`flex-1 ${validationErrors.recipient ? 'border-red-500' : ''}`}>
                     <SelectValue placeholder="Kontakt auswählen">
-                      {contacts.find(c => c.id === formData.contactId)?.name || "Kontakt auswählen"}
+                      {contacts.find(c => c.id === safeFormData.contactId)?.name || "Kontakt auswählen"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -933,9 +1064,15 @@ export default function NeueRechnungPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" onClick={() => setShowContactDialog(true)} className="rounded-md">
-                  <PlusIcon className="h-4 w-4" />
-                </Button>
+                <NewContactDialog onContactCreated={async (contactId) => {
+                  // Aktualisiere die Kontaktliste
+                  const db = getDatabase();
+                  const updatedContacts = await db.listContacts();
+                  setContacts(updatedContacts);
+                  
+                  // Wähle den neuen Kontakt aus
+                  handleContactChange(contactId);
+                }} />
               </div>
               {validationErrors.recipient && (
                 <p className="text-red-500 text-sm mt-1">{validationErrors.recipient}</p>
@@ -950,8 +1087,8 @@ export default function NeueRechnungPage() {
                 className={`w-full rounded-md border border-gray-300 p-2 ${
                   validationErrors.street ? 'border-red-500' : ''
                 }`}
-                value={formData.recipient?.street || ''}
-                onChange={(e) => updateFormData({
+                value={safeFormData.recipient.street}
+                onChange={(e) => setFormData({
                   ...formData,
                   recipient: {
                     ...formData.recipient!,
@@ -970,8 +1107,8 @@ export default function NeueRechnungPage() {
                   className={`w-full rounded-md border border-gray-300 p-2 ${
                     validationErrors.zip ? 'border-red-500' : ''
                   }`}
-                  value={formData.recipient?.zip || ''}
-                  onChange={(e) => updateFormData({
+                  value={safeFormData.recipient.zip}
+                  onChange={(e) => setFormData({
                     ...formData,
                     recipient: {
                       ...formData.recipient!,
@@ -987,8 +1124,8 @@ export default function NeueRechnungPage() {
                   className={`w-full rounded-md border border-gray-300 p-2 ${
                     validationErrors.city ? 'border-red-500' : ''
                   }`}
-                  value={formData.recipient?.city || ''}
-                  onChange={(e) => updateFormData({
+                  value={safeFormData.recipient.city}
+                  onChange={(e) => setFormData({
                     ...formData,
                     recipient: {
                       ...formData.recipient!,
@@ -1002,8 +1139,8 @@ export default function NeueRechnungPage() {
             {/* Land - NICHT ÄNDERN */}
             <div>
               <Select
-                value={formData.recipient?.country || 'DE'}
-                onValueChange={(value) => updateFormData({
+                value={safeFormData.recipient.country || 'DE'}
+                onValueChange={(value) => setFormData({
                   ...formData,
                   recipient: {
                     ...formData.recipient!,
@@ -1055,19 +1192,19 @@ export default function NeueRechnungPage() {
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !formData.date && "text-muted-foreground"
+                        !safeFormData.date && "text-muted-foreground"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.date ? format(formData.date, "P", { locale: de }) : <span>Datum wählen</span>}
+                      {safeFormData.date ? format(new Date(safeFormData.date), "P", { locale: de }) : <span>Datum wählen</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.date}
+                      selected={safeFormData.date ? new Date(safeFormData.date) : new Date()}
                       onSelect={(date) => {
-                        updateFormData({ ...formData, date: date || new Date() });
+                        setFormData({ ...formData, date: date || new Date() });
                         setDatePopoverOpen(false);
                       }}
                       initialFocus
@@ -1086,19 +1223,19 @@ export default function NeueRechnungPage() {
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !formData.deliveryDate && "text-muted-foreground"
+                        !safeFormData.deliveryDate && "text-muted-foreground"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.deliveryDate ? format(formData.deliveryDate, "PPP", { locale: de }) : <span>Datum wählen</span>}
+                      {safeFormData.deliveryDate ? format(new Date(safeFormData.deliveryDate), "PPP", { locale: de }) : <span>Datum wählen</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto" align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.deliveryDate}
+                      selected={safeFormData.deliveryDate ? new Date(safeFormData.deliveryDate) : new Date()}
                       onSelect={(date) => {
-                        updateFormData({ ...formData, deliveryDate: date || new Date() });
+                        setFormData({ ...formData, deliveryDate: date || new Date() });
                         setDeliveryDatePopoverOpen(false);
                       }}
                       initialFocus
@@ -1117,8 +1254,8 @@ export default function NeueRechnungPage() {
                 <Input
                   type="text"
                   className="w-full rounded-md border border-gray-300 p-2"
-                  value={formData.number}
-                  onChange={(e) => updateFormData({
+                  value={safeFormData.number}
+                  onChange={(e) => setFormData({
                     ...formData,
                     number: e.target.value
                   })}
@@ -1131,8 +1268,8 @@ export default function NeueRechnungPage() {
                 <Input
                   type="text"
                   className="w-full rounded-md border border-gray-300 p-2"
-                  value={formData.referenceNumber}
-                  onChange={(e) => updateFormData({ ...formData, referenceNumber: e.target.value })}
+                  value={safeFormData.referenceNumber}
+                  onChange={(e) => setFormData({ ...formData, referenceNumber: e.target.value })}
                 />
               </div>
             </div>
@@ -1148,19 +1285,19 @@ export default function NeueRechnungPage() {
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !formData.dueDate && "text-muted-foreground"
+                        !safeFormData.dueDate && "text-muted-foreground"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.dueDate ? format(formData.dueDate, "PPP", { locale: de }) : <span>Datum wählen</span>}
+                      {safeFormData.dueDate ? format(new Date(safeFormData.dueDate), "PPP", { locale: de }) : <span>Datum wählen</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="start">
                     <Calendar
                       mode="single"
-                      selected={formData.dueDate}
+                      selected={safeFormData.dueDate ? new Date(safeFormData.dueDate) : new Date()}
                       onSelect={(date) => {
-                        updateFormData({ ...formData, dueDate: date || new Date() });
+                        setFormData({ ...formData, dueDate: date || new Date() });
                         setDueDatePopoverOpen(false);
                       }}
                       initialFocus
@@ -1191,8 +1328,8 @@ export default function NeueRechnungPage() {
           <Input
             type="text"
             className="w-full rounded-md border border-gray-300 p-2"
-            value={formData.subject || `Rechnung Nr. ${formData.number}`}
-            onChange={(e) => updateFormData({ ...formData, subject: e.target.value })}
+            value={safeFormData.subject}
+            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
           />
         </div>
       </div>
@@ -1212,7 +1349,7 @@ export default function NeueRechnungPage() {
             </tr>
           </thead>
           <tbody>
-            {formData.positions?.map((position, index) => (
+            {safeFormData.positions?.map((position, index) => (
               <tr key={index}>
                 <td className="py-2 pr-2">
                   <Input
@@ -1339,10 +1476,10 @@ export default function NeueRechnungPage() {
         </div>
 
         {/* Rabatt */}
-        {formData.discount && (
+        {safeFormData.discount && (
           <div className="flex gap-4 items-center justify-end w-full max-w-md">
             <span className="text-sm text-gray-600">
-              Rabatt ({formData.discount.type === 'percentage' ? `${formData.discount.value}%` : 'Fixbetrag'}):
+              Rabatt ({safeFormData.discount.type === 'percentage' ? `${safeFormData.discount.value}%` : 'Fixbetrag'}):
             </span>
             <span className="font-medium text-red-600">-{formatCurrency(totals.discountAmount)}</span>
           </div>
@@ -1447,8 +1584,8 @@ export default function NeueRechnungPage() {
         <Textarea
           className="w-full rounded-md border border-gray-300 p-2"
           rows={4}
-          value={formData.notes}
-          onChange={(e) => updateFormData({ ...formData, notes: e.target.value })}
+          value={safeFormData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
           placeholder="Vielen Dank für Ihren Auftrag!\n\nBitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten angegebene Konto."
         />
       </div>

@@ -87,43 +87,50 @@ function InvoicePreviewContent() {
         );
         
         if (!foundInvoice) {
-          toast({
-            title: "Fehler",
-            description: "Rechnung nicht gefunden",
-            variant: "destructive"
-          });
-          router.push('/rechnungen');
-          return;
+          // Versuche die Daten aus dem localStorage zu laden
+          const draftData = localStorage.getItem(`invoice_draft_${number}`);
+          if (draftData) {
+            const parsedDraft = JSON.parse(draftData);
+            setInvoice(parsedDraft);
+          } else {
+            toast({
+              title: "Fehler",
+              description: "Rechnung nicht gefunden",
+              variant: "destructive"
+            });
+            router.push('/rechnungen');
+            return;
+          }
+        } else {
+          // Stelle sicher, dass die Rabattstruktur korrekt ist
+          if (foundInvoice.discount || foundInvoice.discountType) {
+            foundInvoice.discount = {
+              type: foundInvoice.discountType || foundInvoice.discount?.type || 'fixed',
+              value: Number(foundInvoice.discountValue || foundInvoice.discount?.value || 0)
+            };
+
+            // Debug-Ausgabe für Fehlersuche
+            console.log('Rabatt in der Vorschau:', {
+              original: foundInvoice.discount,
+              type: foundInvoice.discountType,
+              value: foundInvoice.discountValue
+            });
+
+            // Lösche alte Felder
+            delete foundInvoice.discountType;
+            delete foundInvoice.discountValue;
+          }
+
+          // Berechne die Gesamtsummen neu
+          const totals = calculateInvoiceTotals(foundInvoice);
+          foundInvoice.totalNet = totals.netTotal;
+          foundInvoice.totalGross = totals.grossTotal;
+          foundInvoice.vatAmount = totals.totalVat;
+          foundInvoice.vatAmounts = totals.vatAmounts;
+
+          setInvoice(foundInvoice);
         }
 
-        // Stelle sicher, dass die Rabattstruktur korrekt ist
-        if (foundInvoice.discount || foundInvoice.discountType) {
-          foundInvoice.discount = {
-            type: foundInvoice.discountType || foundInvoice.discount?.type || 'fixed',
-            value: Number(foundInvoice.discountValue || foundInvoice.discount?.value || 0)
-          };
-
-          // Debug-Ausgabe für Fehlersuche
-          console.log('Rabatt in der Vorschau:', {
-            original: foundInvoice.discount,
-            type: foundInvoice.discountType,
-            value: foundInvoice.discountValue
-          });
-
-          // Lösche alte Felder
-          delete foundInvoice.discountType;
-          delete foundInvoice.discountValue;
-        }
-
-        // Berechne die Gesamtsummen neu
-        const totals = calculateInvoiceTotals(foundInvoice);
-        foundInvoice.totalNet = totals.netTotal;
-        foundInvoice.totalGross = totals.grossTotal;
-        foundInvoice.vatAmount = totals.totalVat;
-        foundInvoice.vatAmounts = totals.vatAmounts;
-
-        setInvoice(foundInvoice);
-        
         // Lade Einstellungen
         const loadedSettings = await db.getSettings();
         setSettings(loadedSettings);
@@ -140,7 +147,7 @@ function InvoicePreviewContent() {
     };
 
     loadInvoiceData();
-  }, [searchParams]);
+  }, [searchParams, router, toast]);
 
   const handleBack = () => {
     router.push(`/rechnungen/neu?number=${invoice?.number}`);

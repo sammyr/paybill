@@ -198,15 +198,17 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                     </tr>
 
                     {/* MwSt */}
-                    <tr>
-                      <td className="py-1">Umsatzsteuer {Object.keys(totals.vatAmounts)[0]}%:</td>
-                      <td className="text-right">{formatCurrency(totals.totalVat)}</td>
-                    </tr>
+                    {Object.entries(totals.vatAmounts).map(([rate, amount]) => (
+                      <tr key={rate}>
+                        <td className="py-1">MwSt. {rate}%:</td>
+                        <td className="text-right">{formatCurrency(amount)}</td>
+                      </tr>
+                    ))}
 
-                    {/* Brutto */}
+                    {/* Gesamtbetrag */}
                     <tr className="font-bold">
-                      <td className="pt-2 border-t">Gesamtbetrag brutto:</td>
-                      <td className="pt-2 border-t text-right">{formatCurrency(totals.grossTotal)}</td>
+                      <td className="py-1">Gesamtbetrag:</td>
+                      <td className="text-right">{formatCurrency(totals.grossTotal)}</td>
                     </tr>
                   </tbody>
                 </table>

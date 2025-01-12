@@ -4,11 +4,12 @@
  * Bitte seien Sie bei Änderungen besonders vorsichtig.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 
-const STORAGE_KEY = 'invoiceFormData';
+const STORAGE_KEY_PREFIX = 'invoiceFormData_';
 
 export interface InvoiceFormData {
+  id?: string;
   contactId?: string;
   recipient?: {
     id?: string;
@@ -24,10 +25,10 @@ export interface InvoiceFormData {
   positions?: Array<{
     description: string;
     quantity: number;
-    price: number;
-    vat: number;
-    discount: number;
-    amount: number;
+    unitPrice: number;
+    taxRate: number;
+    totalNet: number;
+    totalGross: number;
   }>;
   date?: string;
   dueDate?: string;
@@ -36,15 +37,31 @@ export interface InvoiceFormData {
   referenceNumber?: string;
   notes?: string;
   paymentTerms?: string;
+  discount?: {
+    type: 'percentage' | 'fixed';
+    value: number;
+  };
+  number?: string;
+  subject?: string;
+  totalNet?: number;
+  totalGross?: number;
+  vatAmount?: number;
+  vatAmounts?: {};
 }
 
-export function useInvoiceFormStorage(initialData?: InvoiceFormData): [
+export function useInvoiceFormStorage(invoiceId?: string): [
   InvoiceFormData,
   (newData: InvoiceFormData) => void,
   () => void
 ] {
+  const storageKey = useMemo(() => 
+    invoiceId ? `${STORAGE_KEY_PREFIX}${invoiceId}` : STORAGE_KEY_PREFIX + 'new',
+    [invoiceId]
+  );
+
   const getInitialState = (): InvoiceFormData => {
     const defaultData: InvoiceFormData = {
+      id: '',
       contactId: '',
       recipient: {
         name: '',
@@ -63,16 +80,25 @@ export function useInvoiceFormStorage(initialData?: InvoiceFormData): [
       invoiceNumber: '',
       referenceNumber: '',
       notes: '',
-      paymentTerms: '14 Tage netto'
+      paymentTerms: '14 Tage netto',
+      discount: {
+        type: 'fixed',
+        value: 0
+      },
+      number: '',
+      subject: '',
+      totalNet: 0,
+      totalGross: 0,
+      vatAmount: 0,
+      vatAmounts: {}
     };
 
-    if (typeof window === 'undefined') return initialData || defaultData;
+    if (typeof window === 'undefined') return defaultData;
     
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsedData = JSON.parse(saved);
-        // Stelle sicher, dass alle erforderlichen Felder vorhanden sind
         return {
           ...defaultData,
           ...parsedData,
@@ -80,42 +106,47 @@ export function useInvoiceFormStorage(initialData?: InvoiceFormData): [
             ...defaultData.recipient,
             ...(parsedData.recipient || {})
           },
-          positions: Array.isArray(parsedData.positions) ? parsedData.positions : defaultData.positions,
-          contactId: parsedData.contactId || defaultData.contactId
+          positions: Array.isArray(parsedData.positions) ? parsedData.positions : [],
+          discount: {
+            type: parsedData.discount?.type || 'fixed',
+            value: typeof parsedData.discount?.value === 'number' ? parsedData.discount.value : 0
+          }
         };
       } catch (e) {
         console.error('Fehler beim Laden der gespeicherten Rechnungsdaten:', e);
-        return initialData || defaultData;
+        return defaultData;
       }
     }
 
-    return initialData || defaultData;
+    return defaultData;
   };
 
   const [formData, setFormData] = useState<InvoiceFormData>(getInitialState);
 
   // Lade die Daten beim ersten Rendern und wenn sich der Storage ändert
   useEffect(() => {
-    const handleStorageChange = () => {
-      setFormData(getInitialState());
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === storageKey) {
+        setFormData(getInitialState());
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [getInitialState]);
+  }, [storageKey]);
 
   const updateFormData = (newData: InvoiceFormData) => {
     setFormData(newData);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+      localStorage.setItem(storageKey, JSON.stringify(newData));
     }
   };
 
   const clearFormData = () => {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
     }
     setFormData(getInitialState());
   };
