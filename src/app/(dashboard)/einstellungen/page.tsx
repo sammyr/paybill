@@ -23,30 +23,102 @@ export default function EinstellungenPage() {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const db = getDatabase();
-      const loadedSettings = await db.getSettings();
-      // Setze Deutschland als Standardwert, wenn kein Land gesetzt ist
-      setSettings({
-        ...loadedSettings,
-        country: loadedSettings.country || 'Deutschland'
-      });
-      setLoading(false);
+      try {
+        const response = await fetch('/api/db?action=getSettings');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Loaded data from API:', data);
+          
+          // Initialisiere bankDetails mit Standardwerten
+          const bankDetails = {
+            accountHolder: '',
+            bankName: '',
+            iban: '',
+            bic: '',
+            swift: ''
+          };
+
+          // Wenn bankDetails in den Daten vorhanden ist, übernehme die Werte
+          if (data.bankDetails) {
+            Object.assign(bankDetails, data.bankDetails);
+          }
+          // Übernehme auch die einzelnen Bankfelder, falls vorhanden
+          else {
+            if (data.accountHolder) bankDetails.accountHolder = data.accountHolder;
+            if (data.bankName) bankDetails.bankName = data.bankName;
+            if (data.bankIban) bankDetails.iban = data.bankIban;
+            if (data.bankBic) bankDetails.bic = data.bankBic;
+            if (data.bankSwift) bankDetails.swift = data.bankSwift;
+          }
+
+          console.log('Initialized bankDetails:', bankDetails);
+
+          // Aktualisiere die Einstellungen mit den korrekten Bankdaten
+          setSettings({
+            ...data,
+            bankDetails
+          });
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      } finally {
+        setLoading(false);
+      }
     };
+
     loadSettings();
   }, []);
 
   const handleSave = async () => {
     if (!settings) return;
     
-    const db = getDatabase();
     try {
-      await db.updateSettings(settings);
+      console.log('Saving settings:', settings);
+      
+      // Stelle sicher, dass bankDetails vollständig ist
+      const bankDetails = settings.bankDetails || {
+        accountHolder: '',
+        bankName: '',
+        iban: '',
+        bic: '',
+        swift: ''
+      };
+      
+      const dataToSave = {
+        ...settings,
+        bankDetails
+      };
+      
+      console.log('Data to save:', dataToSave);
+      
+      const response = await fetch('/api/db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'updateSettings',
+          data: dataToSave
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+      
+      const updatedSettings = await response.json();
+      console.log('Settings saved:', updatedSettings);
+      
+      // Aktualisiere die lokalen Einstellungen
+      setSettings(updatedSettings);
+      
       toast({
         title: "Einstellungen gespeichert",
         description: "Ihre Einstellungen wurden erfolgreich gespeichert.",
         duration: 3000
       });
     } catch (error) {
+      console.error('Error saving settings:', error);
       toast({
         title: "Fehler beim Speichern",
         description: "Die Einstellungen konnten nicht gespeichert werden.",
@@ -124,11 +196,14 @@ export default function EinstellungenPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="zip">PLZ</Label>
+              <Label htmlFor="zipCode">PLZ</Label>
               <Input
-                id="zip"
-                value={settings.zip || ''}
-                onChange={(e) => setSettings({ ...settings, zip: e.target.value })}
+                id="zipCode"
+                value={settings.zipCode || ''}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  zipCode: e.target.value
+                })}
               />
             </div>
 
@@ -169,20 +244,12 @@ export default function EinstellungenPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="firmenzusatz">Firmenzusatz</Label>
-            <Input
-              id="firmenzusatz"
-              value={settings.companyAddition || ''}
-              onChange={(e) => setSettings({ ...settings, companyAddition: e.target.value })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="inhaber">Inhaber</Label>
+            <Label htmlFor="inhaber">Firmeninhaber</Label>
             <Input
               id="inhaber"
-              value={settings.owner || ''}
-              onChange={(e) => setSettings({ ...settings, owner: e.target.value })}
+              value={settings.companyOwner || ''}
+              onChange={(e) => setSettings({ ...settings, companyOwner: e.target.value })}
+              placeholder="Max Mustermann"
             />
           </div>
 
@@ -203,101 +270,6 @@ export default function EinstellungenPage() {
                 <SelectItem value="GbR">GbR</SelectItem>
                 <SelectItem value="OHG">OHG</SelectItem>
                 <SelectItem value="KG">KG</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="branche">Branche</Label>
-            <Select
-              value={settings.industry || 'Software Entwicklung'}
-              onValueChange={(value) => setSettings({ ...settings, industry: value })}
-            >
-              <SelectTrigger id="branche">
-                <SelectValue placeholder="Branche auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Software Entwicklung">Software Entwicklung</SelectItem>
-                <SelectItem value="IT-Beratung">IT-Beratung</SelectItem>
-                <SelectItem value="Webdesign">Webdesign</SelectItem>
-                <SelectItem value="E-Commerce">E-Commerce</SelectItem>
-                <SelectItem value="Marketing">Marketing</SelectItem>
-                <SelectItem value="Beratung">Beratung</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="mitarbeiter">Mitarbeiterzahl</Label>
-            <Select
-              value={settings.employees || 'Nur ich'}
-              onValueChange={(value) => setSettings({ ...settings, employees: value })}
-            >
-              <SelectTrigger id="mitarbeiter">
-                <SelectValue placeholder="Mitarbeiterzahl auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Nur ich">Nur ich</SelectItem>
-                <SelectItem value="2-5">2-5 Mitarbeiter</SelectItem>
-                <SelectItem value="6-10">6-10 Mitarbeiter</SelectItem>
-                <SelectItem value="11-20">11-20 Mitarbeiter</SelectItem>
-                <SelectItem value="21+">21+ Mitarbeiter</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Allgemeine Einstellungen</h2>
-
-          <div className="space-y-2">
-            <Label htmlFor="language">Sprache</Label>
-            <Select
-              value={settings.language}
-              onValueChange={(value) => setSettings({ ...settings, language: value })}
-            >
-              <SelectTrigger id="language">
-                <SelectValue placeholder="Sprache auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="de">Deutsch</SelectItem>
-                <SelectItem value="en">English</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="currency">Währung</Label>
-            <Select
-              value={settings.currency}
-              onValueChange={(value) => setSettings({ ...settings, currency: value })}
-            >
-              <SelectTrigger id="currency">
-                <SelectValue placeholder="Währung auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="EUR">Euro (€)</SelectItem>
-                <SelectItem value="USD">US Dollar ($)</SelectItem>
-                <SelectItem value="GBP">Britisches Pfund (£)</SelectItem>
-                <SelectItem value="CHF">Schweizer Franken (CHF)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="timezone">Zeitzone</Label>
-            <Select
-              value={settings.timezone}
-              onValueChange={(value) => setSettings({ ...settings, timezone: value })}
-            >
-              <SelectTrigger id="timezone">
-                <SelectValue placeholder="Zeitzone auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Europe/Berlin">Berlin</SelectItem>
-                <SelectItem value="Europe/London">London</SelectItem>
-                <SelectItem value="Europe/Paris">Paris</SelectItem>
-                <SelectItem value="Europe/Zurich">Zürich</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -343,24 +315,6 @@ export default function EinstellungenPage() {
           <h2 className="text-lg font-semibold">Rechnungen</h2>
           
           <div className="space-y-2">
-            <Label htmlFor="invoiceNumberPrefix">Rechnungsnummer-Präfix</Label>
-            <Select
-              value={settings.invoiceNumberPrefix || 'RE'}
-              onValueChange={(value) => setSettings({ ...settings, invoiceNumberPrefix: value })}
-            >
-              <SelectTrigger id="invoiceNumberPrefix">
-                <SelectValue placeholder="Präfix auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="RE">RE</SelectItem>
-                <SelectItem value="R">R</SelectItem>
-                <SelectItem value="INV">INV</SelectItem>
-                <SelectItem value="CUSTOM">Benutzerdefiniert</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="paymentTermDays">Zahlungsziel (Tage)</Label>
             <Select
               value={settings.paymentTermDays?.toString() || '14'}
@@ -375,24 +329,6 @@ export default function EinstellungenPage() {
                 <SelectItem value="30">30 Tage</SelectItem>
                 <SelectItem value="45">45 Tage</SelectItem>
                 <SelectItem value="60">60 Tage</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="invoiceTemplate">Rechnungsvorlage</Label>
-            <Select
-              value={settings.invoiceTemplate || 'standard'}
-              onValueChange={(value) => setSettings({ ...settings, invoiceTemplate: value })}
-            >
-              <SelectTrigger id="invoiceTemplate">
-                <SelectValue placeholder="Vorlage auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="modern">Modern</SelectItem>
-                <SelectItem value="classic">Klassisch</SelectItem>
-                <SelectItem value="minimal">Minimalistisch</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -419,17 +355,27 @@ export default function EinstellungenPage() {
           <h2 className="text-lg font-semibold">Bankverbindung</h2>
             
           <div className="space-y-2">
-            <Label htmlFor="accountHolder">Kontoinhaber</Label>
+            <Label htmlFor="bankName">Bank</Label>
             <Input
-              id="accountHolder"
-              value={settings.bankDetails?.accountHolder || ''}
-              onChange={(e) => setSettings({
-                ...settings,
-                bankDetails: {
-                  ...settings.bankDetails,
-                  accountHolder: e.target.value
-                }
-              })}
+              id="bankName"
+              value={settings.bankDetails?.bankName || ''}
+              onChange={(e) => {
+                const newBankDetails = {
+                  ...(settings.bankDetails || {}),
+                  bankName: e.target.value
+                };
+                console.log('Updating bankName:', e.target.value);
+                console.log('New bankDetails:', newBankDetails);
+                setSettings(prev => {
+                  const updated = {
+                    ...prev,
+                    bankDetails: newBankDetails
+                  };
+                  console.log('Updated settings:', updated);
+                  return updated;
+                });
+              }}
+              placeholder="Deutsche Bank"
             />
           </div>
 
@@ -438,13 +384,22 @@ export default function EinstellungenPage() {
             <Input
               id="iban"
               value={settings.bankDetails?.iban || ''}
-              onChange={(e) => setSettings({
-                ...settings,
-                bankDetails: {
-                  ...settings.bankDetails,
+              onChange={(e) => {
+                const newBankDetails = {
+                  ...(settings.bankDetails || {}),
                   iban: e.target.value.toUpperCase().replace(/\s/g, '')
-                }
-              })}
+                };
+                console.log('Updating IBAN:', e.target.value);
+                console.log('New bankDetails:', newBankDetails);
+                setSettings(prev => {
+                  const updated = {
+                    ...prev,
+                    bankDetails: newBankDetails
+                  };
+                  console.log('Updated settings:', updated);
+                  return updated;
+                });
+              }}
               placeholder="DE12 3456 7890 1234 5678 90"
             />
           </div>
@@ -454,39 +409,56 @@ export default function EinstellungenPage() {
             <Input
               id="bic"
               value={settings.bankDetails?.bic || ''}
-              onChange={(e) => setSettings({
-                ...settings,
-                bankDetails: {
-                  ...settings.bankDetails,
+              onChange={(e) => {
+                const newBankDetails = {
+                  ...(settings.bankDetails || {}),
                   bic: e.target.value.toUpperCase().replace(/\s/g, '')
-                }
-              })}
+                };
+                console.log('Updating BIC:', e.target.value);
+                console.log('New bankDetails:', newBankDetails);
+                setSettings(prev => {
+                  const updated = {
+                    ...prev,
+                    bankDetails: newBankDetails
+                  };
+                  console.log('Updated settings:', updated);
+                  return updated;
+                });
+              }}
               placeholder="DEUTDEDBXXX"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="bankName">Bank</Label>
+            <Label htmlFor="accountHolder">Kontoinhaber</Label>
             <Input
-              id="bankName"
-              value={settings.bankDetails?.bankName || ''}
-              onChange={(e) => setSettings({
-                ...settings,
-                bankDetails: {
-                  ...settings.bankDetails,
-                  bankName: e.target.value
-                }
-              })}
-              placeholder="Deutsche Bank"
+              id="accountHolder"
+              value={settings.bankDetails?.accountHolder || ''}
+              onChange={(e) => {
+                const newBankDetails = {
+                  ...(settings.bankDetails || {}),
+                  accountHolder: e.target.value
+                };
+                console.log('Updating accountHolder:', e.target.value);
+                console.log('New bankDetails:', newBankDetails);
+                setSettings(prev => {
+                  const updated = {
+                    ...prev,
+                    bankDetails: newBankDetails
+                  };
+                  console.log('Updated settings:', updated);
+                  return updated;
+                });
+              }}
             />
           </div>
         </div>
-      </div>
 
-      <div className="flex justify-end mt-8 border-t pt-6">
-        <Button onClick={handleSave} className="min-w-[120px]">
-          Speichern
-        </Button>
+        <div className="flex justify-end mt-8 border-t pt-6">
+          <Button onClick={handleSave} className="min-w-[120px]">
+            Speichern
+          </Button>
+        </div>
       </div>
     </div>
   );

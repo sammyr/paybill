@@ -123,6 +123,264 @@ const getNextNumber = (invoices: Invoice[]): string => {
 - Auch gelöschte Rechnungen/Entwürfe geben ihre Nummer nicht frei
 - Die Nummer ist permanent, sobald sie vergeben wurde
 
+## Projektstruktur und Datenbank
+
+### Verzeichnisstruktur
+```
+paybill/
+├── src/
+│   ├── app/
+│   │   ├── (dashboard)/
+│   │   │   ├── einstellungen/
+│   │   │   │   └── page.tsx      # Einstellungen-Seite
+│   │   │   └── layout.tsx        # Dashboard Layout
+│   │   └── api/
+│   │       └── db/
+│   │           └── route.ts       # API-Endpunkte
+│   ├── lib/
+│   │   └── db/
+│   │       ├── index.ts          # Datenbank-Initialisierung
+│   │       ├── interfaces.ts     # TypeScript Interfaces
+│   │       ├── sqlite.ts         # SQLite Implementation
+│   │       └── dexie.ts         # Dexie/IndexedDB Implementation
+│   └── components/
+│       └── ui/                   # UI-Komponenten
+└── data/
+    └── paybill.db               # SQLite Datenbank
+```
+
+### Datenbank-Schema
+
+#### Settings Tabelle
+```sql
+CREATE TABLE settings (
+  id TEXT PRIMARY KEY,
+  companyName TEXT,
+  logo TEXT,
+  street TEXT,
+  number TEXT,
+  zipCode TEXT,
+  city TEXT,
+  country TEXT,
+  state TEXT,
+  address TEXT,
+  email TEXT,
+  phone TEXT,
+  mobile TEXT,
+  fax TEXT,
+  website TEXT,
+  taxId TEXT,
+  vatId TEXT,
+  accountHolder TEXT,
+  bankName TEXT,
+  bankIban TEXT,
+  bankBic TEXT,
+  bankSwift TEXT,
+  invoicePrefix TEXT,
+  invoiceNextNumber INTEGER,
+  offerPrefix TEXT,
+  offerNextNumber INTEGER,
+  defaultTaxRate REAL,
+  defaultPaymentTerms TEXT,
+  defaultNotes TEXT,
+  defaultFooter TEXT,
+  defaultTerms TEXT,
+  currency TEXT,
+  language TEXT,
+  dateFormat TEXT,
+  createdAt TEXT,
+  updatedAt TEXT
+)
+```
+
+### Datenverarbeitung
+
+#### Frontend zu Backend
+1. Frontend speichert Daten in einem strukturierten Format:
+   ```typescript
+   interface Settings {
+     bankDetails?: {
+       accountHolder: string;
+       bankName: string;
+       iban: string;
+       bic: string;
+       swift: string;
+     };
+     // ... andere Felder
+   }
+   ```
+
+2. API-Route (`/api/db`) verarbeitet die Daten:
+   - Normalisiert komplexe Objekte (z.B. bankDetails)
+   - Konvertiert Daten in das DB-Schema
+   - Entfernt nicht benötigte Felder
+
+3. SQLite-Klasse speichert die Daten:
+   - Extrahiert Felder aus komplexen Objekten
+   - Führt INSERT/UPDATE Operationen durch
+   - Konvertiert Daten zurück in das Frontend-Format
+
+#### Backend zu Frontend
+1. SQLite-Klasse liest Daten:
+   - Liest alle Felder aus der Datenbank
+   - Konvertiert Datenbankfelder in Objekte
+   - Erstellt komplexe Objekte (z.B. bankDetails)
+
+2. API-Route sendet Daten:
+   - Validiert die Daten
+   - Konvertiert Datentypen wenn nötig
+   - Sendet strukturierte Antwort
+
+3. Frontend verarbeitet Daten:
+   - Initialisiert State mit den Daten
+   - Rendert UI-Komponenten
+   - Verwaltet lokale Änderungen
+
+## Datenbankstruktur
+
+### Einstellungen (settings)
+
+Die Einstellungen werden in der SQLite-Datenbank in der Tabelle `settings` gespeichert. Hier ist die vollständige Struktur:
+
+#### Hauptfelder
+- `id` (TEXT, PRIMARY KEY): Eindeutige ID des Einstellungssatzes
+- `companyName` (TEXT): Name des Unternehmens
+- `logo` (TEXT): URL oder Pfad zum Firmenlogo
+
+#### Adressfelder
+- `street` (TEXT): Straßenname
+- `number` (TEXT): Hausnummer
+- `zipCode` (TEXT): Postleitzahl
+- `city` (TEXT): Stadt
+- `country` (TEXT): Land
+- `state` (TEXT): Bundesland
+- `address` (TEXT): Zusätzliche Adressinformationen
+
+#### Kontaktdaten
+- `email` (TEXT): E-Mail-Adresse
+- `phone` (TEXT): Telefonnummer
+- `mobile` (TEXT): Mobilnummer
+- `fax` (TEXT): Faxnummer
+- `website` (TEXT): Webseite
+
+#### Steuerliche Informationen
+- `taxId` (TEXT): Steuernummer
+- `vatId` (TEXT): Umsatzsteuer-ID
+- `defaultTaxRate` (REAL): Standard-Steuersatz
+
+#### Bankverbindung
+- `accountHolder` (TEXT): Name des Kontoinhabers
+- `bankName` (TEXT): Name der Bank
+- `bankIban` (TEXT): IBAN
+- `bankBic` (TEXT): BIC
+- `bankSwift` (TEXT): SWIFT-Code
+
+#### Standardtexte
+- `defaultPaymentTerms` (TEXT): Standard-Zahlungsbedingungen
+- `defaultNotes` (TEXT): Standard-Notizen
+- `defaultFooter` (TEXT): Standard-Fußzeile
+- `defaultTerms` (TEXT): Standard-AGB
+
+#### Formatierung und Lokalisierung
+- `currency` (TEXT): Währung
+- `dateFormat` (TEXT): Datumsformat
+- `timezone` (TEXT): Zeitzone
+
+#### Metadaten
+- `createdAt` (TEXT): Erstellungsdatum
+- `updatedAt` (TEXT): Letztes Änderungsdatum
+
+### Datenverarbeitung
+
+#### Speicherung
+1. Alle Textfelder werden als UTF-8 kodiert gespeichert
+2. Zahlen werden als REAL (Gleitkommazahlen) gespeichert
+3. Datumsangaben werden im ISO-8601 Format gespeichert
+4. Bankdaten werden normalisiert (Leerzeichen entfernt, Großbuchstaben)
+
+#### Validierung
+1. IBAN und BIC werden vor der Speicherung normalisiert (Großbuchstaben, keine Leerzeichen)
+2. Steuersätze werden als Dezimalzahlen gespeichert (z.B. 19.0 für 19%)
+3. Pflichtfelder werden vor der Speicherung geprüft
+
+#### Datenabruf
+1. Bankdaten werden in ein strukturiertes `bankDetails`-Objekt umgewandelt
+2. Leere Felder werden als `undefined` zurückgegeben
+3. Zahlen werden als native JavaScript-Zahlen zurückgegeben
+
+### TypeScript Interface
+
+```typescript
+interface Settings {
+  id?: string;
+  companyName?: string;
+  logo?: string;
+  street?: string;
+  number?: string;
+  zipCode?: string;
+  city?: string;
+  country?: string;
+  state?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  fax?: string;
+  website?: string;
+  taxId?: string;
+  vatId?: string;
+  bankDetails?: BankDetails;
+  defaultTaxRate?: number;
+  defaultPaymentTerms?: string;
+  defaultNotes?: string;
+  defaultFooter?: string;
+  defaultTerms?: string;
+  currency?: string;
+  dateFormat?: string;
+  timezone?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface BankDetails {
+  accountHolder: string;
+  bankName: string;
+  iban: string;
+  bic: string;
+  swift: string;
+}
+```
+
+### Beispiel
+
+```typescript
+// Beispiel für einen Einstellungsdatensatz
+const settings = {
+  id: "1",
+  companyName: "Musterfirma GmbH",
+  street: "Musterstraße",
+  number: "123",
+  zipCode: "12345",
+  city: "Musterstadt",
+  country: "Deutschland",
+  email: "info@musterfirma.de",
+  phone: "+49 123 456789",
+  taxId: "12/345/67890",
+  vatId: "DE123456789",
+  bankDetails: {
+    accountHolder: "Musterfirma GmbH",
+    bankName: "Musterbank",
+    iban: "DE89370400440532013000",
+    bic: "DEUTDEDBXXX",
+    swift: "DEUTDEFF"
+  },
+  defaultTaxRate: 19,
+  currency: "EUR",
+  dateFormat: "DD.MM.YYYY",
+  timezone: "Europe/Berlin"
+};
+```
+
 ## Technische Implementierung
 
 ### 1. Datenbank-Layer (memory.ts)
@@ -482,3 +740,63 @@ const loadInvoiceData = async () => {
 - Die Berechnung erfolgt immer auf Basis des Netto-Gesamtbetrags
 - Alle Berechnungen werden serverseitig validiert
 - Die Rabattinformationen werden beim Speichern und Laden der Rechnung automatisch konvertiert
+
+### Workflow
+1. **Neue Rechnung**
+   - System generiert nächste freie Nummer
+   - Prüfung auf Eindeutigkeit
+   - Speicherung mit garantiert eindeutiger Nummer
+
+2. **Bearbeitung**
+   - Nummer kann nicht mehr geändert werden
+   - Eindeutigkeit bleibt erhalten
+   - Keine temporären Duplikate
+
+3. **Anzeige**
+   - In der Übersicht erscheint jede Nummer nur einmal
+   - Sortierung nach Rechnungsnummer möglich
+   - Filterung berücksichtigt Eindeutigkeit
+
+### Wichtige Hinweise
+- Rechnungsnummern sind unveränderlich nach Erstellung
+- Keine manuelle Vergabe von Nummern möglich
+- System garantiert Eindeutigkeit zu jedem Zeitpunkt
+- Keine temporären oder permanenten Duplikate erlaubt
+
+### Fehlerfälle und Behandlung
+
+#### 1. Doppelte Nummern
+- System erkennt doppelte Nummern automatisch
+- Generiert eine neue, freie Nummer
+- Aktualisiert URL und Formular
+- Informiert den Benutzer
+
+#### 2. Ungültige Nummern
+- System bereinigt Nummern automatisch
+- Entfernt führende Nullen
+- Entfernt nicht-numerische Zeichen
+- Validiert vor dem Speichern
+
+#### 3. Fehlende Nummern
+- System verhindert das Speichern ohne Nummer
+- Generiert automatisch eine neue Nummer
+- Informiert den Benutzer über Fehler
+
+### Best Practices
+
+1. **Konsistenz**
+   - Immer die gleiche Nummer während des gesamten Bearbeitungsprozesses verwenden
+   - Nummer in URL und Formular synchron halten
+   - Änderungen transparent kommunizieren
+
+2. **Validierung**
+   - Nummern vor dem Speichern validieren
+   - Duplikate verhindern
+   - Format-Regeln durchsetzen
+
+3. **Benutzerführung**
+   - Klare Fehlermeldungen anzeigen
+   - Automatische Korrekturen kommunizieren
+   - Einfache Navigation zwischen Bearbeitung und Vorschau
+
+```

@@ -157,18 +157,17 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                     </tr>
                   </thead>
                   <tbody className="text-sm">
-                    {invoice.positions.map((position, index) => {
-                      const { totalNet } = calculatePositionTotals(position);
-                      return (
-                        <tr key={position.id || index}>
+                    {invoice.positions?.map((position, index) => (
+                      <React.Fragment key={position.id || index}>
+                        <tr>
                           <td className="py-2">{index + 1}.</td>
                           <td className="py-2">{position.description}</td>
                           <td className="text-right py-2">{position.quantity.toFixed(2)} Tag(e)</td>
                           <td className="text-right py-2">{formatCurrency(position.unitPrice)}</td>
-                          <td className="text-right py-2">{formatCurrency(totalNet)}</td>
+                          <td className="text-right py-2">{formatCurrency(calculatePositionTotals(position).totalNet)}</td>
                         </tr>
-                      );
-                    })}
+                      </React.Fragment>
+                    ))}
                   </tbody>
                 </table>
 
@@ -176,40 +175,50 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                 <table className="w-full mt-8">
                   <tbody className="text-sm">
                     {/* Zwischensumme */}
-                    <tr>
-                      <td className="py-1">Zwischensumme:</td>
-                      <td className="text-right">{formatCurrency(totals.netTotal)}</td>
-                    </tr>
+                    <React.Fragment>
+                      <tr>
+                        <td className="py-1">Zwischensumme:</td>
+                        <td className="text-right">{formatCurrency(totals.netTotal)}</td>
+                      </tr>
+                    </React.Fragment>
 
                     {/* Rabatt */}
                     {invoice.discount && invoice.discount.value > 0 && (
-                      <tr>
-                        <td className="py-1">
-                          Rabatt ({invoice.discount.type === 'percentage' ? `${invoice.discount.value}%` : `${formatCurrency(invoice.discount.value)}`}):
-                        </td>
-                        <td className="text-right text-red-600">-{formatCurrency(totals.discountAmount)}</td>
-                      </tr>
+                      <React.Fragment>
+                        <tr>
+                          <td className="py-1">
+                            Rabatt ({invoice.discount.type === 'percentage' ? `${invoice.discount.value}%` : `${formatCurrency(invoice.discount.value)}`}):
+                          </td>
+                          <td className="text-right text-red-600">-{formatCurrency(totals.discountAmount)}</td>
+                        </tr>
+                      </React.Fragment>
                     )}
 
                     {/* Netto nach Rabatt */}
-                    <tr>
-                      <td className="py-1">Gesamtbetrag netto:</td>
-                      <td className="text-right">{formatCurrency(totals.netAfterDiscount)}</td>
-                    </tr>
+                    <React.Fragment>
+                      <tr>
+                        <td className="py-1">Gesamtbetrag netto:</td>
+                        <td className="text-right">{formatCurrency(totals.netAfterDiscount)}</td>
+                      </tr>
+                    </React.Fragment>
 
                     {/* MwSt */}
                     {Object.entries(totals.vatAmounts).map(([rate, amount]) => (
-                      <tr key={rate}>
-                        <td className="py-1">MwSt. {rate}%:</td>
-                        <td className="text-right">{formatCurrency(amount)}</td>
-                      </tr>
+                      <React.Fragment key={rate}>
+                        <tr>
+                          <td className="py-1">MwSt. {rate}%:</td>
+                          <td className="text-right">{formatCurrency(amount)}</td>
+                        </tr>
+                      </React.Fragment>
                     ))}
 
                     {/* Gesamtbetrag */}
-                    <tr className="font-bold">
-                      <td className="py-1">Gesamtbetrag:</td>
-                      <td className="text-right">{formatCurrency(totals.grossTotal)}</td>
-                    </tr>
+                    <React.Fragment>
+                      <tr className="font-bold">
+                        <td className="py-1">Gesamtbetrag:</td>
+                        <td className="text-right">{formatCurrency(totals.grossTotal)}</td>
+                      </tr>
+                    </React.Fragment>
                   </tbody>
                 </table>
 

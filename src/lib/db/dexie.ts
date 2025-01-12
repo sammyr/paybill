@@ -43,7 +43,12 @@ export class DexieDatabase implements DatabaseInterface {
   }
 
   async getContact(id: string): Promise<Contact | null> {
-    return this.db.contacts.get(id) || null;
+    const contact = await this.db.contacts.get(id);
+    if (contact) {
+      contact.createdAt = new Date(contact.createdAt);
+      contact.updatedAt = new Date(contact.updatedAt);
+    }
+    return contact || null;
   }
 
   async updateContact(id: string, contact: Partial<Contact>): Promise<Contact> {
@@ -64,7 +69,12 @@ export class DexieDatabase implements DatabaseInterface {
   }
 
   async listContacts(): Promise<Contact[]> {
-    return this.db.contacts.toArray();
+    const contacts = await this.db.contacts.toArray();
+    return contacts.map(contact => ({
+      ...contact,
+      createdAt: new Date(contact.createdAt),
+      updatedAt: new Date(contact.updatedAt)
+    }));
   }
 
   async getAllContacts(): Promise<Contact[]> {
@@ -81,8 +91,8 @@ export class DexieDatabase implements DatabaseInterface {
     const newInvoice: Invoice = {
       id: crypto.randomUUID(),
       ...invoice,
-      createdAt: now,
-      updatedAt: now
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
     };
 
     await this.db.invoices.add(newInvoice);
@@ -99,7 +109,7 @@ export class DexieDatabase implements DatabaseInterface {
     const now = new Date();
     const updates = {
       ...invoice,
-      updatedAt: now
+      updatedAt: now.toISOString()
     };
 
     await this.db.invoices.update(id, updates);
@@ -129,7 +139,14 @@ export class DexieDatabase implements DatabaseInterface {
   }
 
   async getOffer(id: string): Promise<Offer | null> {
-    return this.db.offers.get(id) || null;
+    const offer = await this.db.offers.get(id);
+    if (offer) {
+      offer.createdAt = new Date(offer.createdAt);
+      offer.updatedAt = new Date(offer.updatedAt);
+      if (offer.date) offer.date = new Date(offer.date);
+      if (offer.validUntil) offer.validUntil = new Date(offer.validUntil);
+    }
+    return offer || null;
   }
 
   async updateOffer(id: string, offer: Partial<Offer>): Promise<Offer> {
@@ -150,7 +167,14 @@ export class DexieDatabase implements DatabaseInterface {
   }
 
   async listOffers(): Promise<Offer[]> {
-    return this.db.offers.toArray();
+    const offers = await this.db.offers.toArray();
+    return offers.map(offer => ({
+      ...offer,
+      createdAt: new Date(offer.createdAt),
+      updatedAt: new Date(offer.updatedAt),
+      date: offer.date ? new Date(offer.date) : undefined,
+      validUntil: offer.validUntil ? new Date(offer.validUntil) : undefined
+    }));
   }
 
   async resetOffers(): Promise<void> {
@@ -159,20 +183,30 @@ export class DexieDatabase implements DatabaseInterface {
 
   // Settings
   async getSettings(): Promise<Settings> {
-    const settings = await this.db.settings.get('default');
-    return settings || {};
+    const settings = await this.db.settings.toArray();
+    return settings[0] || {};
   }
 
   async updateSettings(settings: Partial<Settings>): Promise<Settings> {
-    const current = await this.getSettings();
+    const now = new Date();
     const updates = {
-      ...current,
       ...settings,
-      id: 'default'
+      updatedAt: now.toISOString()
     };
 
-    await this.db.settings.put(updates);
-    return this.getSettings();
+    const existing = await this.db.settings.toArray();
+    if (existing.length > 0) {
+      await this.db.settings.update(existing[0].id!, updates);
+      return this.getSettings();
+    } else {
+      const newSettings = {
+        id: crypto.randomUUID(),
+        ...updates,
+        createdAt: now.toISOString()
+      };
+      await this.db.settings.add(newSettings);
+      return newSettings;
+    }
   }
 
   // Taxes
@@ -190,7 +224,14 @@ export class DexieDatabase implements DatabaseInterface {
   }
 
   async getTax(id: string): Promise<Tax | null> {
-    return this.db.taxes.get(id) || null;
+    const tax = await this.db.taxes.get(id);
+    if (tax) {
+      tax.createdAt = new Date(tax.createdAt);
+      tax.updatedAt = new Date(tax.updatedAt);
+      if (tax.dueDate) tax.dueDate = new Date(tax.dueDate);
+      if (tax.submissionDate) tax.submissionDate = new Date(tax.submissionDate);
+    }
+    return tax || null;
   }
 
   async updateTax(id: string, tax: Partial<Tax>): Promise<Tax> {
@@ -211,6 +252,13 @@ export class DexieDatabase implements DatabaseInterface {
   }
 
   async listTaxes(): Promise<Tax[]> {
-    return this.db.taxes.toArray();
+    const taxes = await this.db.taxes.toArray();
+    return taxes.map(tax => ({
+      ...tax,
+      createdAt: new Date(tax.createdAt),
+      updatedAt: new Date(tax.updatedAt),
+      dueDate: tax.dueDate ? new Date(tax.dueDate) : undefined,
+      submissionDate: tax.submissionDate ? new Date(tax.submissionDate) : undefined
+    }));
   }
 }

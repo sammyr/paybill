@@ -2,13 +2,20 @@ import { DatabaseInterface } from './interfaces';
 import { DexieDatabase } from './dexie';
 
 // Singleton instance
-let db: DatabaseInterface | null = null;
+let database: DatabaseInterface | null = null;
 
 export function getDatabase(): DatabaseInterface {
-  if (!db) {
-    db = new DexieDatabase();
+  if (!database) {
+    if (typeof window === 'undefined') {
+      // Server-side: Dynamischer Import von SQLite
+      const { SQLiteDatabase } = require('./sqlite');
+      database = new SQLiteDatabase();
+    } else {
+      // Client-side: Verwende IndexedDB via Dexie
+      database = new DexieDatabase();
+    }
   }
-  return db;
+  return database;
 }
 
 export class Database implements DatabaseInterface {

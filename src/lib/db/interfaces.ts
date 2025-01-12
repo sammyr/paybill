@@ -85,10 +85,10 @@ export interface InvoiceItem {
 export interface Offer {
   id: string;
   number: string;
-  date: Date;
-  validUntil: Date;
+  date?: Date;
+  validUntil?: Date;
   status: 'entwurf' | 'offen' | 'angenommen' | 'abgelehnt' | 'abgelaufen';
-  recipient: {
+  recipient?: {
     name: string;
     street?: string;
     zip?: string;
@@ -118,23 +118,44 @@ export interface OfferItem {
   totalGross: number;
 }
 
+export interface BankDetails {
+  accountHolder: string;
+  bankName: string;
+  iban: string;
+  bic: string;
+  swift: string;
+}
+
 export interface Settings {
   id?: string;
   companyName?: string;
+  logo?: string;
+  companyOwner?: string;
   street?: string;
-  zip?: string;
+  number?: string;
+  zipCode?: string;
   city?: string;
   country?: string;
-  phone?: string;
+  state?: string;
+  address?: string;
   email?: string;
+  phone?: string;
+  mobile?: string;
+  fax?: string;
   website?: string;
-  vatId?: string;
   taxId?: string;
-  bankDetails?: {
-    bankName?: string;
-    iban?: string;
-    bic?: string;
-  };
+  vatId?: string;
+  bankDetails?: BankDetails;
+  defaultTaxRate?: number;
+  defaultPaymentTerms?: string;
+  defaultNotes?: string;
+  defaultFooter?: string;
+  defaultTerms?: string;
+  currency?: string;
+  dateFormat?: string;
+  timezone?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Tax {
@@ -144,7 +165,7 @@ export interface Tax {
   taxableAmount: number;
   taxAmount: number;
   status: 'draft' | 'submitted' | 'paid';
-  dueDate: Date;
+  dueDate?: Date;
   submissionDate?: Date;
   createdAt: Date;
   updatedAt: Date;
