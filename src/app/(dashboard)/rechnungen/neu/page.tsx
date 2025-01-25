@@ -198,27 +198,30 @@ export default function NeueRechnungPage() {
 function InvoiceForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const invoiceNumber = searchParams.get('number');
+  const { toast } = useToast();
+  
+  // Basis-States
   const [isClient, setIsClient] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [showNewContactDialog, setShowNewContactDialog] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [paymentDays, setPaymentDays] = useState(14);
   const [isErechnung, setIsErechnung] = useState(false);
-  const { toast } = useToast();
-  const [formData, setFormData, clearFormData] = useInvoiceFormStorage(invoiceNumber || undefined);
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [deliveryDatePopoverOpen, setDeliveryDatePopoverOpen] = useState(false);
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
 
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [showContactDialog, setShowContactDialog] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<{
-    recipient?: string;
-    street?: string;
-    positions?: string;
-  }>({});
+  // Hole die Rechnungsnummer aus den URL-Parametern
+  const invoiceNumber = searchParams?.get('number');
+  const invoiceId = searchParams?.get('id');
 
-  const [showDiscountDialog, setShowDiscountDialog] = useState(false);
-  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
-  const [discountValue, setDiscountValue] = useState<string>('');
+  // Initialisiere formData
+  const [formData, setFormData] = useState<FormData>(() => ({
+    ...defaultFormData,
+    number: invoiceNumber ? invoiceNumber.replace(/^0+/, '') : '', // Entferne führende Nullen
+    invoiceNumber: invoiceNumber ? invoiceNumber.replace(/^0+/, '') : '' // Entferne führende Nullen
+  }));
 
   useEffect(() => {
     setIsClient(true);
@@ -238,35 +241,28 @@ function InvoiceForm() {
 
   useEffect(() => {
     const loadInvoiceData = async () => {
-      if (!invoiceNumber) return;
+      if (!invoiceId) return;
 
       try {
-        const db = getDatabase();
-        const invoices = await db.listInvoices();
-        const invoice = invoices.find(inv => inv.number === invoiceNumber);
-
+        const db = await getDatabase();
+        const invoice = await db.getInvoice(invoiceId);
+        
         if (invoice) {
-          console.log('Lade Rechnung mit Nummer:', invoiceNumber);
-          console.log('Gefundene Rechnung:', invoice);
-
-          // Stelle sicher, dass der Rabatt korrekt geladen wird
           const discount = invoice.discount || { type: 'fixed', value: 0 };
-          console.log('Geladener Rabatt:', discount);
-
-          // Konvertiere die Daten in das FormData-Format
-          const updatedFormData = {
+          
+          setFormData({
             ...formData,
             id: invoice.id,
-            number: invoice.number,
+            number: invoice.number || invoiceNumber || '',
             recipient: invoice.recipient || formData.recipient,
-            positions: invoice.positions.map(pos => ({
-              description: pos.description,
-              quantity: pos.quantity,
-              unitPrice: pos.unitPrice,
-              taxRate: pos.taxRate,
+            positions: invoice.positions?.map(pos => ({
+              description: pos.description || '',
+              quantity: pos.quantity || 0,
+              unitPrice: pos.unitPrice || 0,
+              taxRate: pos.taxRate || 19,
               totalNet: pos.totalNet || 0,
               totalGross: pos.totalGross || 0
-            })),
+            })) || [],
             date: invoice.date || formData.date,
             dueDate: invoice.dueDate || formData.dueDate,
             notes: invoice.notes || '',
@@ -274,124 +270,38 @@ function InvoiceForm() {
               type: discount.type,
               value: typeof discount.value === 'number' ? discount.value : 0
             }
-          };
-
-          console.log('Aktualisierte Formulardaten:', updatedFormData);
-          setFormData(updatedFormData);
+          });
         }
       } catch (error) {
-        console.error('Fehler beim Laden der Rechnungsdaten:', error);
+        console.error('Fehler beim Laden der Rechnung:', error);
         toast({
           title: "Fehler",
-          description: "Die Rechnungsdaten konnten nicht geladen werden",
+          description: "Die Rechnung konnte nicht geladen werden",
           variant: "destructive"
         });
       }
     };
 
     loadInvoiceData();
-  }, [invoiceNumber]);
+  }, [invoiceId, invoiceNumber]);
 
   useEffect(() => {
-    const loadData = async () => {
-      // Hole die Rechnungsnummer und ID aus der URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const id = urlParams.get('id');
-      let number = urlParams.get('number');
-      
-      // Lösche vorherige Draft-Daten
-      localStorage.removeItem('lastEditedInvoice');
-      localStorage.removeItem(`invoice_draft_${'draft_temp'}`);
-
-      const db = getDatabase();
-
-      // Wenn eine ID vorhanden ist, lade die bestehende Rechnung
-      if (id) {
-        try {
-          const invoice = await db.getInvoice(id);
-          if (invoice) {
-            console.log('Geladene Rechnung:', invoice); // Debug-Log
-            
-            // Verwende die existierende Nummer
-            number = invoice.number;
-            
-            // Stelle sicher, dass alle Positionen die erforderlichen Felder haben
-            const positions = invoice.positions?.map(pos => {
-              const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseFloat(String(pos.quantity)) || 0;
-              const unitPrice = typeof pos.unitPrice === 'number' ? pos.unitPrice : parseFloat(String(pos.unitPrice)) || 0;
-              const taxRate = typeof pos.taxRate === 'number' ? pos.taxRate : 19;
-              
-              const totalNet = quantity * unitPrice;
-              const totalGross = totalNet * (1 + (taxRate / 100));
-              
-              return {
-                description: pos.description || '',
-                quantity: quantity,
-                unitPrice: unitPrice,
-                taxRate: taxRate,
-                totalNet: totalNet,
-                totalGross: totalGross
-              };
-            }) || [];
-
-            // Stelle sicher, dass der Rabatt korrekt geladen wird
-            const discount = invoice.discount || { type: 'fixed', value: 0 };
-            console.log('Geladener Rabatt:', discount); // Debug-Log
-
-            // Aktualisiere das Formular mit allen Daten
-            const updatedFormData = {
-              ...formData,
-              id: invoice.id,
-              number: invoice.number,
-              date: invoice.date,
-              dueDate: invoice.dueDate,
-              recipient: invoice.recipient || formData.recipient,
-              positions: positions,
-              notes: invoice.notes || '',
-              discount: {
-                type: discount.type,
-                value: typeof discount.value === 'number' ? discount.value : 0
-              }
-            };
-            
-            // Debug-Log für die finalen Formulardaten
-            console.log('Finale Formulardaten:', updatedFormData);
-            
-            setFormData(updatedFormData);
-          }
-        } catch (error) {
-          console.error('Fehler beim Laden der Rechnung:', error);
-          toast({
-            title: "Fehler",
-            description: "Die Rechnung konnte nicht geladen werden",
-            variant: "destructive"
-          });
-        }
-      }
-      
-      // Aktualisiere das Formular mit der Nummer, falls noch nicht geschehen
-      if (!id) {
-        setFormData(prev => ({
-          ...prev,
-          number: number
-        }));
-      }
-
-      // Lade Kontakte
+    const loadContacts = async () => {
       try {
+        const db = await getDatabase();
         const loadedContacts = await db.listContacts();
         setContacts(loadedContacts);
       } catch (error) {
         console.error('Fehler beim Laden der Kontakte:', error);
         toast({
           title: "Fehler",
-          description: "Kontakte konnten nicht geladen werden.",
+          description: "Kontakte konnten nicht geladen werden",
           variant: "destructive"
         });
       }
     };
 
-    loadData();
+    loadContacts();
   }, []);
 
   useEffect(() => {
@@ -416,6 +326,26 @@ function InvoiceForm() {
       });
     }
   }, [contacts, formData.contactId]); // Nur prüfen wenn sich die Kontakte oder die contactId ändert
+
+  useEffect(() => {
+    if (!invoiceNumber) return;
+
+    // Entferne alle nicht-numerischen Zeichen und führende Nullen
+    const cleanNumber = invoiceNumber.replace(/\D/g, '').replace(/^0+/, '');
+    
+    if (cleanNumber !== invoiceNumber) {
+      // Aktualisiere die URL mit der bereinigten Nummer
+      const newUrl = `${window.location.pathname}?number=${cleanNumber}`;
+      window.history.replaceState({ path: newUrl }, '', newUrl);
+      
+      // Aktualisiere das Formular
+      setFormData(prev => ({
+        ...prev,
+        number: cleanNumber,
+        invoiceNumber: cleanNumber
+      }));
+    }
+  }, [invoiceNumber]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -502,7 +432,7 @@ function InvoiceForm() {
   };
 
   const handleAddDiscount = () => {
-    setShowDiscountDialog(true);
+    setShowNewContactDialog(true);
   };
 
   const handleDiscountSubmit = (type: 'percentage' | 'fixed', value: number) => {
@@ -513,7 +443,7 @@ function InvoiceForm() {
         value: Number(value)
       }
     });
-    setShowDiscountDialog(false);
+    setShowNewContactDialog(false);
   };
 
   const handleContactSelect = (contact: Contact) => {
@@ -536,7 +466,7 @@ function InvoiceForm() {
         taxId: contact.taxId || ''
       }
     });
-    setShowContactDialog(false);
+    setShowNewContactDialog(false);
   };
 
   const validateForm = () => {
@@ -610,12 +540,60 @@ function InvoiceForm() {
       // Berechne Gesamtbeträge
       const totals = calculateInvoiceTotals(formData);
 
-      // Erstelle neue Rechnung
+      // Entferne alle nicht-numerischen Zeichen und führende Nullen
+      const cleanNumber = formData.number.replace(/\D/g, '').replace(/^0+/, '');
+
+      // Prüfe ob die Rechnungsnummer bereits existiert
+      const existingInvoices = await db.listInvoices();
+      const existingInvoice = existingInvoices.find(inv => 
+        inv.number && inv.number.replace(/\D/g, '').replace(/^0+/, '') === cleanNumber
+      );
+
+      // Wenn die Rechnung bereits existiert, aktualisiere sie
+      if (existingInvoice) {
+        const updatedInvoice = await db.updateInvoice(existingInvoice.id, {
+          date: formData.date,
+          dueDate: formData.dueDate,
+          number: cleanNumber, // Verwende die bereinigte Nummer
+          status: 'entwurf',
+          recipient: {
+            name: formData.recipient.name,
+            street: formData.recipient.street,
+            zip: formData.recipient.zip,
+            city: formData.recipient.city,
+            country: formData.recipient.country || 'Deutschland',
+            email: formData.recipient.email,
+            phone: formData.recipient.phone,
+            taxId: formData.recipient.taxId
+          },
+          positions: formData.positions?.map(pos => ({
+            id: generateId(),
+            description: pos.description,
+            quantity: Number(pos.quantity),
+            unitPrice: Number(pos.unitPrice),
+            taxRate: Number(pos.taxRate),
+            totalNet: Number(pos.totalNet),
+            totalGross: Number(pos.totalGross)
+          })) || [],
+          notes: formData.notes,
+          discount: formData.discount ? {
+            type: formData.discount.type,
+            value: Number(formData.discount.value)
+          } : undefined,
+          totalNet: totals.netTotal,
+          totalGross: totals.grossTotal,
+          vatAmount: totals.totalVat,
+          vatAmounts: totals.vatAmounts
+        });
+        return updatedInvoice;
+      }
+
+      // Erstelle eine neue Rechnung
       const invoice: Omit<InvoiceType, 'id' | 'createdAt' | 'updatedAt'> = {
         date: formData.date,
         dueDate: formData.dueDate,
-        number: formData.number,
-        status: 'entwurf',
+        number: cleanNumber, // Verwende die bereinigte Nummer
+        status: 'draft',
         recipient: {
           name: formData.recipient.name,
           street: formData.recipient.street,
@@ -636,40 +614,15 @@ function InvoiceForm() {
           totalGross: Number(pos.totalGross)
         })) || [],
         notes: formData.notes,
-        discount: totals.discountAmount,
-        discountType: formData.discount?.type,
-        discountValue: formData.discount?.value,
-        totalNet: totals.netTotal,
-        totalGross: totals.grossTotal,
-        vatAmount: totals.totalVat,
-        vatAmounts: totals.vatAmounts
+        discount: formData.discount ? {
+          type: formData.discount.type,
+          value: Number(formData.discount.value)
+        } : undefined,
+        ...totals
       };
 
-      try {
-        const savedInvoice = await db.createInvoice(invoice);
-        console.log('Rechnung gespeichert:', savedInvoice);
-        
-        // Lösche temporäre Daten
-        localStorage.removeItem('invoiceFormData');
-        localStorage.removeItem('lastEditedInvoice');
-        
-        // Navigiere zur Preview-Seite mit Rechnungsnummer
-        router.push(`/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
-      } catch (error) {
-        if (error.message?.includes('existiert bereits')) {
-          // Hole eine neue Nummer und versuche es erneut
-          const nextNumber = await db.getNextInvoiceNumberPublic();
-          invoice.number = nextNumber;
-          // Aktualisiere die URL
-          const newUrl = `${window.location.pathname}?number=${nextNumber}`;
-          window.history.pushState({ path: newUrl }, '', newUrl);
-          const savedInvoice = await db.createInvoice(invoice);
-          router.push(`/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
-        } else {
-          throw error;
-        }
-      }
-      
+      const savedInvoice = await db.createInvoice(invoice);
+      return savedInvoice;
     } catch (error) {
       console.error('Fehler beim Speichern:', error);
       toast({
@@ -750,10 +703,18 @@ function InvoiceForm() {
       const db = getDatabase();
       const totals = calculateInvoiceTotals(formData);
 
+      // Stelle sicher, dass eine Rechnungsnummer vorhanden ist
+      if (!formData.number) {
+        throw new Error('Keine Rechnungsnummer vorhanden');
+      }
+
+      // Entferne alle nicht-numerischen Zeichen und führende Nullen
+      const cleanNumber = formData.number.replace(/\D/g, '').replace(/^0+/, '');
+
       // Prüfe ob die Rechnungsnummer bereits existiert
       const existingInvoices = await db.listInvoices();
       const existingInvoice = existingInvoices.find(inv => 
-        inv.number.replace(/^0+/, '') === formData.number.replace(/^0+/, '')
+        inv.number && inv.number.replace(/\D/g, '').replace(/^0+/, '') === cleanNumber
       );
 
       // Wenn die Rechnung bereits existiert, aktualisiere sie
@@ -761,7 +722,7 @@ function InvoiceForm() {
         const updatedInvoice = await db.updateInvoice(existingInvoice.id, {
           date: formData.date,
           dueDate: formData.dueDate,
-          number: formData.number,
+          number: cleanNumber, // Verwende die bereinigte Nummer
           status: 'entwurf',
           recipient: {
             name: formData.recipient.name,
@@ -799,7 +760,7 @@ function InvoiceForm() {
       const invoice: Omit<InvoiceType, 'id' | 'createdAt' | 'updatedAt'> = {
         date: formData.date,
         dueDate: formData.dueDate,
-        number: formData.number,
+        number: cleanNumber, // Verwende die bereinigte Nummer
         status: 'draft',
         recipient: {
           name: formData.recipient.name,
@@ -1053,7 +1014,7 @@ function InvoiceForm() {
               - PLZ (Input)
               - Stadt (Input)
               - Land (Select)
-　　            　
+　
               Jede nicht autorisierte Änderung könnte zu Datenverlust oder 
               Inkonsistenzen in der Kontaktverwaltung führen.
             */}
@@ -1271,6 +1232,7 @@ function InvoiceForm() {
                   type="text"
                   className="w-full rounded-md border border-gray-300 p-2"
                   value={safeFormData.number}
+                  readOnly
                   onChange={(e) => setFormData({
                     ...formData,
                     number: e.target.value
@@ -1523,7 +1485,7 @@ function InvoiceForm() {
       </div>
 
       {/* Rabatt-Dialog */}
-      {showDiscountDialog && (
+      {showNewContactDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
             <h3 className="text-lg font-semibold mb-4">Rabatt hinzufügen</h3>
@@ -1531,14 +1493,14 @@ function InvoiceForm() {
               <div className="flex gap-4">
                 <Button
                   type="button"
-                  variant={discountType === 'percentage' ? 'default' : 'outline'}
+                  variant="default"
                   onClick={() => setDiscountType('percentage')}
                 >
                   Prozent
                 </Button>
                 <Button
                   type="button"
-                  variant={discountType === 'fixed' ? 'default' : 'outline'}
+                  variant="outline"
                   onClick={() => setDiscountType('fixed')}
                 >
                   Festbetrag
@@ -1579,7 +1541,7 @@ function InvoiceForm() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowDiscountDialog(false)}
+                onClick={() => setShowNewContactDialog(false)}
               >
                 Abbrechen
               </Button>

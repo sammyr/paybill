@@ -71,6 +71,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { useRouter } from 'next/navigation';
 import { getDatabase } from '@/lib/db';
 import { Invoice } from '@/lib/db/interfaces';
+import { useToast } from "@/components/ui/use-toast";
 
 // Status-Typen für Rechnungen
 type InvoiceStatus = 'Entwurf' | 'Offen' | 'Fällig' | 'Bezahlt' | 'Teilbezahlt' | 'Storno' | 'Festgeschrieben' | 'Wiederkehrend';
@@ -129,8 +130,29 @@ const generateDisplayNumber = () => {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
 };
 
+// Funktion zum Ermitteln der höchsten Rechnungsnummer
+const getHighestInvoiceNumber = (invoices: Invoice[]): string => {
+  if (!invoices || invoices.length === 0) return '2023001';
+  
+  const numbers = invoices.map(inv => inv.number || '2023001');
+  const highestNumber = numbers.reduce((max, current) => {
+    const currentNum = parseInt(current);
+    const maxNum = parseInt(max);
+    return currentNum > maxNum ? current : max;
+  });
+  
+  return highestNumber;
+};
+
+// Funktion zum Generieren der nächsten Rechnungsnummer
+const getNextInvoiceNumber = (currentHighest: string): string => {
+  const numericPart = parseInt(currentHighest);
+  return (numericPart + 1).toString();
+};
+
 export default function RechnungenPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [entriesPerPage, setEntriesPerPage] = useState<string>('10');
@@ -206,9 +228,24 @@ export default function RechnungenPage() {
 
   const handleReset = async () => {
     if (confirm('Möchten Sie wirklich alle Rechnungen löschen? Dies kann nicht rückgängig gemacht werden.')) {
-      const db = getDatabase();
-      await db.resetDatabase();
-      await loadInvoices();
+      try {
+        const response = await fetch('/api/db/reset', {
+          method: 'POST',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Fehler beim Zurücksetzen der Datenbank');
+        }
+
+        const result = await response.json();
+        if (result.success) {
+          await loadInvoices();
+        } else {
+          console.error('Fehler:', result.message);
+        }
+      } catch (error) {
+        console.error('Fehler beim Zurücksetzen:', error);
+      }
     }
   };
 
@@ -239,6 +276,28 @@ export default function RechnungenPage() {
     }
   };
 
+  // Handler für "Neue Rechnung" Button
+  const handleNewInvoice = () => {
+    const highestNumber = getHighestInvoiceNumber(invoices);
+    const nextNumber = getNextInvoiceNumber(highestNumber);
+    router.push(`/rechnungen/neu?number=${nextNumber}`);
+  };
+
+  // Handler für "Bearbeiten" Button
+  const handleEditInvoice = async (invoice: Invoice) => {
+    try {
+      // Leite zur Rechnungserstellung weiter und übergebe die Rechnungsnummer
+      router.push(`/rechnungen/neu?number=${invoice.number}`);
+    } catch (error) {
+      console.error('Fehler beim Bearbeiten der Rechnung:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Rechnung konnte nicht bearbeitet werden",
+        variant: "destructive"
+      });
+    }
+  };
+
   const filteredInvoices = selectedStatus === 'all' 
     ? invoices 
     : invoices.filter(invoice => invoice.status === selectedStatus);
@@ -251,8 +310,8 @@ export default function RechnungenPage() {
           <Button variant="destructive" onClick={handleReset}>
             Datenbank zurücksetzen
           </Button>
-          <Button onClick={() => router.push('/rechnungen/neu')}>
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={handleNewInvoice} className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
             Neue Rechnung
           </Button>
         </div>
@@ -337,7 +396,7 @@ export default function RechnungenPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/rechnungen/neu?id=${invoice.id}&number=${invoice.number || invoice.displayNumber}`)}
+                      onClick={() => handleEditInvoice(invoice)}
                       title="Bearbeiten"
                     >
                       <Pencil className="w-4 h-4" />

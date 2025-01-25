@@ -24,6 +24,52 @@ Diese Dokumentation beschreibt das System zur Vergabe und Verwaltung von Rechnun
 - Führende Nullen werden automatisch entfernt
 - Duplikate werden verhindert durch Prüfung auf Existenz
 
+### 4. Bearbeitungsverhalten
+- Die Rechnungsnummer bleibt während der gesamten Bearbeitung konstant
+- Beim ersten Speichern wird die Nummer fest zugewiesen
+- Auch bei erneutem Öffnen oder Bearbeiten bleibt die Nummer unverändert
+- Dies verhindert Verwirrung und Inkonsistenzen in der Nummerierung
+
+### 5. Technische Implementierung
+- Bereinigung der Nummern:
+  ```typescript
+  // Entfernt führende Nullen und nicht-numerische Zeichen
+  const cleanNumber = number.replace(/\D/g, '').replace(/^0+/, '');
+  ```
+- Konsistente Überprüfung:
+  ```typescript
+  // Vergleich von Rechnungsnummern
+  const isMatch = cleanNumber1 === cleanNumber2;
+  ```
+- Speicherformat:
+  ```typescript
+  // Speicherung in der Datenbank
+  invoice.number = cleanNumber;
+  ```
+
+### 6. Fehlerbehandlung
+- Null-Werte werden explizit geprüft und verhindert
+- Ungültige Formate werden automatisch bereinigt
+- Bei Duplikaten wird die bestehende Rechnung aktualisiert
+- Fehlermeldungen informieren den Benutzer über Probleme
+
+## Best Practices
+
+### 1. Neue Rechnungen erstellen
+- Immer die nächste verfügbare Nummer verwenden
+- Nummer direkt bei Erstellung zuweisen
+- Keine manuelle Nummernvergabe
+
+### 2. Bestehende Rechnungen bearbeiten
+- Rechnungsnummer nie ändern
+- Immer die ursprüngliche Nummer beibehalten
+- Bei Bedarf Storno erstellen statt Nummer zu ändern
+
+### 3. Suche und Filterung
+- Nummern vor der Suche bereinigen
+- Führende Nullen ignorieren
+- Nur numerische Werte vergleichen
+
 ## Rechnungsnummern-System
 
 ### Grundprinzipien

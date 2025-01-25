@@ -123,9 +123,24 @@ export default function AngebotePage() {
 
   const handleReset = async () => {
     if (confirm('Möchten Sie wirklich alle Angebote löschen? Dies kann nicht rückgängig gemacht werden.')) {
-      const db = getDatabase();
-      await db.resetOffers();
-      await loadOffers();
+      try {
+        const response = await fetch('/api/db/reset', {
+          method: 'POST',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Fehler beim Zurücksetzen der Datenbank');
+        }
+
+        const result = await response.json();
+        if (result.success) {
+          await loadOffers();
+        } else {
+          console.error('Fehler:', result.message);
+        }
+      } catch (error) {
+        console.error('Fehler beim Zurücksetzen:', error);
+      }
     }
   };
 

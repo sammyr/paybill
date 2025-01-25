@@ -103,3 +103,21 @@ function initDatabase(db: Database.Database) {
     )
   `);
 }
+
+export function resetDatabase() {
+  const db = getDatabase();
+  
+  // Lösche alle existierenden Tabellen
+  db.exec(`
+    DROP TABLE IF EXISTS contacts;
+    DROP TABLE IF EXISTS invoices;
+    DROP TABLE IF EXISTS offers;
+    DROP TABLE IF EXISTS settings;
+    DROP TABLE IF EXISTS taxes;
+  `);
+
+  // Initialisiere die Datenbank neu
+  initDatabase(db);
+  
+  return { success: true, message: 'Datenbank wurde zurückgesetzt' };
+}
