@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generatePdf } from 'html-pdf-node';
+import pdf from 'html-pdf';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
-import { existsSync } from 'fs';
+import { promisify } from 'util';
 
 // Funktion zum Ermitteln des Browser-Pfads
 function getBrowserExecutablePath() {
@@ -26,6 +26,9 @@ function getBrowserExecutablePath() {
       throw new Error('Nicht unterstütztes Betriebssystem');
   }
 }
+
+// Promisify the pdf.create function
+const createPdf = promisify(pdf.create);
 
 export async function POST(req: NextRequest) {
   try {
@@ -353,7 +356,7 @@ export async function POST(req: NextRequest) {
     // PDF-Optionen
     const options = {
       format: 'A4',
-      margin: {
+      border: {
         top: '20mm',
         right: '20mm',
         bottom: '20mm',
@@ -362,7 +365,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Generiere PDF
-    const buffer = await generatePdf({ content: html }, options);
+    const buffer = await createPdf(html, options);
 
     // Sende PDF als Response
     return new NextResponse(buffer, {
