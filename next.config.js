@@ -7,7 +7,12 @@ const nextConfig = {
     ignoreBuildErrors: true
   },
   images: {
-    domains: ['images.unsplash.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+    ],
   },
   webpack: (config, { isServer }) => {
     // Server-side: Erlaube native Module

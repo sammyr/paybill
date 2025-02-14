@@ -23,7 +23,11 @@ export async function POST(req: NextRequest) {
 
     // Starte Puppeteer
     const browser = await puppeteer.launch({
-      headless: 'new'
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: process.platform === 'win32' 
+        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+        : undefined
     });
     const page = await browser.newPage();
 
