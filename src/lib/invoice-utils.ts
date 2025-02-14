@@ -84,67 +84,48 @@ export function calculatePositionTotals(position: InvoicePosition): { totalNet: 
 /**
  * Berechnet alle Summen einer Rechnung
  */
-export function calculateInvoiceTotals(invoice: Invoice): InvoiceTotals {
-  // Netto-Summe berechnen (Zwischensumme)
-  const netTotal = invoice.positions.reduce((sum, pos) => {
-    const { totalNet } = calculatePositionTotals(pos);
-    return sum + totalNet;
+export function calculateInvoiceTotals(invoice: any) {
+  // Debug: Eingangsdaten
+  console.log('Berechne Summen für:', invoice);
+
+  const positions = invoice.positions || [];
+  
+  // Netto-Gesamtbetrag berechnen
+  const netTotal = positions.reduce((sum: number, pos: any) => {
+    const quantity = pos.quantity ? parseFloat(pos.quantity.toString()) : 0;
+    const price = pos.unitPrice ? parseFloat(pos.unitPrice.toString()) : 0;
+    const positionTotal = quantity * price;
+
+    // Debug: Position
+    console.log('Position Berechnung:', {
+      description: pos.description,
+      quantity,
+      unitPrice: price,
+      total: positionTotal
+    });
+
+    return sum + positionTotal;
   }, 0);
 
-  // Rabatt berechnen
-  let discountAmount = 0;
-  if (invoice.discount && typeof invoice.discount.value === 'number' && invoice.discount.value > 0) {
-    if (invoice.discount.type === 'percentage') {
-      discountAmount = netTotal * (invoice.discount.value / 100);
-    } else {
-      discountAmount = invoice.discount.value;
-    }
-    // Debug-Ausgabe für Rabattberechnung
-    console.log('Rabattberechnung:', {
-      type: invoice.discount.type,
-      value: invoice.discount.value,
-      netTotal,
-      discountAmount
-    });
-  }
+  // MwSt berechnen (19%)
+  const totalVat = netTotal * 0.19;
+  const grossTotal = netTotal + totalVat;
 
-  // Netto nach Rabatt
-  const netAfterDiscount = netTotal - discountAmount;
-
-  // MwSt pro Satz berechnen
-  const vatAmounts = invoice.positions.reduce((acc, pos) => {
-    const { totalNet } = calculatePositionTotals(pos);
-    if (totalNet === 0) return acc;
-
-    // Anteiligen Rabatt für diese Position berechnen
-    const positionDiscountRatio = totalNet / netTotal;
-    const positionDiscount = discountAmount * positionDiscountRatio;
-    const positionNetAfterDiscount = totalNet - positionDiscount;
-    
-    const vatRate = parseFloat(String(pos.taxRate)) || 19;
-    const key = vatRate.toString();
-    if (!acc[key]) {
-      acc[key] = 0;
-    }
-    acc[key] += positionNetAfterDiscount * (vatRate / 100);
-    return acc;
-  }, {} as { [key: string]: number });
-
-  // Gesamte MwSt
-  const totalVat = Object.values(vatAmounts).reduce((sum, amount) => sum + (amount || 0), 0);
-
-  // Brutto-Summe
-  const grossTotal = netAfterDiscount + totalVat;
+  // Debug: Endergebnis
+  console.log('Berechnete Summen:', {
+    netTotal,
+    totalVat,
+    grossTotal
+  });
 
   return {
-    netTotal: Number(netTotal.toFixed(2)),
-    discountAmount: Number(discountAmount.toFixed(2)),
-    netAfterDiscount: Number(netAfterDiscount.toFixed(2)),
-    vatAmounts: Object.fromEntries(
-      Object.entries(vatAmounts).map(([rate, amount]) => [rate, Number(amount.toFixed(2))])
-    ),
-    totalVat: Number(totalVat.toFixed(2)),
-    grossTotal: Number(grossTotal.toFixed(2))
+    netTotal,
+    totalVat,
+    grossTotal,
+    vatRate: 19,
+    vatAmounts: {
+      "19": totalVat // Füge vatAmounts für 19% hinzu
+    }
   };
 }
 

@@ -1,397 +1,415 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pdf from 'html-pdf';
+import { generatePDF } from '@/lib/pdf-generator';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
-import { promisify } from 'util';
-
-// Funktion zum Ermitteln des Browser-Pfads
-function getBrowserExecutablePath() {
-  switch (process.platform) {
-    case 'win32':
-      return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-    case 'linux': {
-      // Prüfe verschiedene mögliche Pfade
-      const paths = [
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-        '/snap/bin/chromium'
-      ];
-      const existingPath = paths.find(path => existsSync(path));
-      if (!existingPath) {
-        throw new Error('Kein unterstützter Browser gefunden. Bitte installieren Sie Google Chrome oder Chromium.');
-      }
-      return existingPath;
-    }
-    default:
-      throw new Error('Nicht unterstütztes Betriebssystem');
-  }
-}
-
-// Promisify the pdf.create function
-const createPdf = promisify(pdf.create);
+import { formatCurrency, formatDate } from '@/lib/format-utils';
 
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
     const { invoice, settings } = data;
 
-    // Debug-Ausgabe
-    console.log('Empfangene Rechnungsdaten:', {
+    // Debug: Eingehende Daten
+    console.log('Verarbeite Rechnungsdaten:', {
       invoice: {
-        ...invoice,
-        discount: invoice.discount
+        id: invoice.id,
+        number: invoice.number,
+        date: invoice.date,
+        deliveryDate: invoice.deliveryDate,
+        recipient: invoice.recipient,
+        positions: invoice.positions?.map(pos => ({
+          description: pos.description,
+          quantity: pos.quantity,
+          unitPrice: pos.unitPrice
+        }))
       },
-      settings
+      settings: {
+        companyName: settings.companyName,
+        logo: settings.logo ? 'vorhanden' : 'nicht vorhanden',
+        address: `${settings.street}, ${settings.zip} ${settings.city}`,
+        owner: settings.owner
+      }
     });
 
-    // Berechne die korrekten Totals
+    // Berechne die Summen
     const totals = calculateInvoiceTotals(invoice);
 
-    // Debug-Ausgabe
-    console.log('Berechnete Totals:', totals);
-
-    // HTML für die Rechnung
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            @page {
-              size: A4;
-              margin: 0;
-            }
-            body {
-              margin: 0;
-              padding: 15mm 20mm;
-              font-family: system-ui, -apple-system, sans-serif;
-              font-size: 10pt;
-              color: #333;
-              line-height: 1.4;
-              font-weight: 300;
-              width: 100%;
-              box-sizing: border-box;
-            }
-            .logo-container {
-              text-align: right;
-              margin-bottom: 1rem;
-
-            }
-            .logo {
-              max-width: 70%;
-              height: auto;
-              object-fit: contain;
-            }
-            .header-address {
-              color: #666;
-              font-size: 9pt;
-              font-weight: 300;
-            }
-            .header-container {
-              margin-bottom: 2rem;
-            }
-            .header-flex {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-end;
-            }
-            .qr-code {
-              width: 56px;
-              height: 56px;
-              margin-left: auto;
-            }
-            .recipient-meta-container {
-              display: flex;
-              justify-content: space-between;
-              margin: 2rem 0 3rem 0;
-            }
-            .recipient {
-              line-height: 1.2;
-              flex: 1;
-            }
-            .recipient p {
-              margin: 0 0 2px 0;
-            }
-            .meta-info {
-              width: 300px;
-              border-collapse: collapse;
-            }
-            .meta-info td {
-              padding: 4px 0;
-              vertical-align: top;
-            }
-            .meta-info td:first-child {
-              color: #666;
-              padding-right: 2rem;
-              font-weight: 300;
-            }
-            .meta-info td:last-child {
-              text-align: right;
-              font-weight: 400;
-            }
-            .invoice-title {
-              font-size: 14pt;
-              font-weight: 600;
-              margin: 2rem 0;
-            }
-            .positions {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 1rem 0 2rem 0;
-            }
-            .positions th {
-              text-align: left;
-              border-bottom: 1px solid #ddd;
-              padding: 8px 16px 8px 0;
-              font-weight: 600;
-            }
-            .positions th:first-child {
-              width: 5%;
-            }
-            .positions th:nth-child(2) {
-              width: 45%;
-            }
-            .positions th:nth-child(3) {
-              width: 15%;
-            }
-            .positions th:nth-child(4) {
-              width: 15%;
-              text-align: right;
-            }
-            .positions th:last-child {
-              width: 20%;
-              text-align: right;
-              padding-right: 0;
-            }
-            .positions td {
-              padding: 8px 4px;
-              vertical-align: top;
-            }
-            .positions td.price {
-              text-align: right;
-              padding-right: 0;
-            }
-            .totals {
-              margin-top: 2rem;
-              text-align: right;
-              width: 100%;
-            }
-            .totals-table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            .totals td:first-child {
-              text-align: left;
-              padding-right: 16px;
-              font-weight: 400;
-              width: 85%;
-            }
-            .totals td:last-child {
-              text-align: right;
-              font-weight: 400;
-              width: 15%;
-            }
-            .totals tr.discount td:last-child {
-              color: #dc2626;
-            }
-            .totals tr.total-line {
-              border-top: 1px solid #ddd;
-            }
-            .totals tr.total-line td {
-              padding-top: 8px;
-              font-weight: 600;
-            }
-            .payment-note {
-              margin: 2rem 0;
-            }
-            .footer {
-              position: fixed;
-              bottom: 15mm;
-              left: 20mm;
-              right: 20mm;
-              display: grid;
-              grid-template-columns: minmax(auto, 1.5fr) minmax(auto, 2fr) minmax(auto, 2fr) minmax(auto, 1.5fr);
-              gap: 20px;
-              font-size: 8pt;
-              color: #666;
-              padding-top: 10px;
-              border-top: 1px solid #eee;
-              font-weight: 300;
-              line-height: 1.2;
-            }
-            .footer p {
-              margin: 0 0 2px 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header-container">
-              <!-- Logo -->
-              <div class="logo-container">
-                <img class="logo" src="${settings.logo || 'data:image/png;base64,iVBORw...'}" alt="Logo">
-              </div>
-
-              <!-- Absender und QR-Code -->
-              <div class="header-flex">
-                <div class="header-address">
-                  ${settings.companyName} - ${settings.street} - ${settings.zip} ${settings.city}
-                </div>
-                <img 
-                  class="qr-code"
-                  src="https://api.qrserver.com/v1/create-qr-code/?size=56x56&data=https://example.com/invoices/${invoice.id}"
-                  alt="QR Code"
-                />
-              </div>
-            </div>
-
-            <!-- Empfänger und Meta-Informationen -->
-            <div class="recipient-meta-container">
-              <!-- Empfänger -->
-              <div class="recipient">
-                ${invoice.recipient?.name ? `<p>${invoice.recipient.name}</p>` : ''}
-                ${invoice.recipient?.street ? `<p>${invoice.recipient.street}</p>` : ''}
-                ${invoice.recipient?.zip || invoice.recipient?.city ? `<p>${invoice.recipient?.zip || ''} ${invoice.recipient?.city || ''}</p>` : ''}
-                ${invoice.recipient?.country ? `<p>${invoice.recipient.country}</p>` : ''}
-              </div>
-
-              <!-- Rechnungsinformationen -->
-              <table class="meta-info">
-                ${invoice.number ? `
-                <tr>
-                  <td><strong>Rechnungs-Nr.</strong></td>
-                  <td><strong>${invoice.number.padStart(4, '0')}</strong></td>
-                </tr>` : ''}
-                ${invoice.date ? `
-                <tr>
-                  <td>Rechnungsdatum</td>
-                  <td>${new Date(invoice.date).toLocaleDateString('de-DE')}</td>
-                </tr>` : ''}
-                ${invoice.date ? `
-                <tr>
-                  <td>Lieferdatum</td>
-                  <td>${new Date(invoice.date).toLocaleDateString('de-DE')}</td>
-                </tr>` : ''}
-                ${invoice.customerNumber ? `
-                <tr>
-                  <td>Ihre Kundennummer</td>
-                  <td>${invoice.customerNumber}</td>
-                </tr>` : ''}
-                ${settings.owner ? `
-                <tr>
-                  <td>Ihr Ansprechpartner</td>
-                  <td>${settings.owner}</td>
-                </tr>` : ''}
-
- 
-              </table>
-            </div>
-
-            <h1 class="invoice-title">Rechnung Nr. ${invoice.number?.padStart(4, '0')}</h1>
-
-            <!-- Positionen -->
-            <table class="positions">
-              <tr>
-                <th>Pos.</th>
-                <th>Beschreibung</th>
-                <th>Menge</th>
-                <th class="price">Einzelpreis</th>
-                <th class="price">Gesamtpreis</th>
-              </tr>
-              <tbody>
-                ${invoice.positions.map((pos, index) => `
-                  <tr>
-                    <td>${index + 1}.</td>
-                    <td>${pos.description}</td>
-                    <td>${pos.quantity} Tag(e)</td>
-                    <td class="price">${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(pos.unitPrice)}</td>
-                    <td class="price">${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(pos.quantity * pos.unitPrice)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-
-            <!-- Summen -->
-            <div class="totals">
-              <table class="totals-table">
-                <tr>
-                  <td>Zwischensumme:</td>
-                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netTotal)}</td>
-                </tr>
-                ${invoice.discount && invoice.discount.value > 0 ? `
-                  <tr class="discount">
-                    <td>Rabatt (${invoice.discount.value}${invoice.discount.type === 'percentage' ? '%' : ' €'}):</td>
-                    <td>-${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.discountAmount)}</td>
-                  </tr>
-                ` : ''}
-                <tr>
-                  <td>Gesamtbetrag netto:</td>
-                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.netAfterDiscount)}</td>
-                </tr>
-                ${Object.entries(totals.vatAmounts).map(([rate, amount]) => `
-                  <tr>
-                    <td>Umsatzsteuer ${rate}%:</td>
-                    <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount)}</td>
-                  </tr>
-                `).join('')}
-                <tr class="total-line">
-                  <td>Gesamtbetrag brutto:</td>
-                  <td>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(totals.grossTotal)}</td>
-                </tr>
-              </table>
-            </div>
-
-            <!-- Zahlungshinweis -->
-            <div class="payment-note">
-              Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen
-              auf das unten angegebene Konto.
-            </div>
-
-            <!-- Footer -->
-            <div class="footer">
-              <div>
-                ${settings.companyName ? `<p>${settings.companyName}</p>` : ''}
-                ${settings.street ? `<p>${settings.street}</p>` : ''}
-                ${settings.zip || settings.city ? `<p>${settings.zip || ''} ${settings.city || ''}</p>` : ''}
-                ${settings.country ? `<p>${settings.country}</p>` : ''}
-              </div>
-              <div>
-                ${settings.phone ? `<p>Tel.: ${settings.phone}</p>` : ''}
-                ${settings.email ? `<p>E-Mail: ${settings.email}</p>` : ''}
-                ${settings.website ? `<p>Web: ${settings.website}</p>` : ''}
-              </div>
-              <div>
-                ${settings.taxId ? `<p>USt-ID: ${settings.taxId}</p>` : ''}
-                ${settings.vatId ? `<p>Steuer-Nr.: ${settings.vatId}</p>` : ''}
-                ${settings.owner ? `<p>Inhaber/-in: ${settings.owner}</p>` : ''}
-              </div>
-              <div>
-                ${settings.bankDetails?.bankName ? `<p>Bank: ${settings.bankDetails.bankName}</p>` : ''}
-                ${settings.bankDetails?.iban ? `<p>IBAN: ${settings.bankDetails.iban}</p>` : ''}
-                ${settings.bankDetails?.bic ? `<p>BIC: ${settings.bankDetails.bic}</p>` : ''}
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // PDF-Optionen
-    const options = {
-      format: 'A4',
-      border: {
-        top: '20mm',
-        right: '20mm',
-        bottom: '20mm',
-        left: '20mm'
-      }
-    };
-
     // Generiere PDF
-    const buffer = await createPdf(html, options);
+    const pdfBuffer = await generatePDF({
+      content: [
+        // Logo
+        ...(settings.logo ? [{
+          type: 'image',
+          imageData: settings.logo.startsWith('data:') ? settings.logo : `data:image/png;base64,${settings.logo}`,
+          x: 120,
+          y: 15,
+          width: 70,
+          height: 12
+        }] : []),
+
+        // Absenderzeile
+        {
+          text: `${settings.companyName || ''} - ${settings.street || ''} - ${settings.zip || ''} ${settings.city || ''}`.trim(),
+          x: 20,
+          y: 25,
+          fontSize: 8,
+          color: '#666666'
+        },
+
+        // QR-Code
+        ...(invoice.id ? [{
+          type: 'image',
+          imageData: await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=56x56&data=https://example.com/invoices/${invoice.id}&format=png`)
+            .then(res => res.arrayBuffer())
+            .then(buffer => `data:image/png;base64,${Buffer.from(buffer).toString('base64')}`)
+            .catch(() => {
+              console.error('Fehler beim Laden des QR-Codes');
+              return '';
+            }),
+          x: 170,
+          y: 15,
+          width: 10,
+          height: 10
+        }] : []),
+
+        // Empfänger
+        {
+          text: (invoice.recipient?.name || '').trim(),
+          x: 20,
+          y: 45,
+          fontSize: 11
+        },
+        {
+          text: (invoice.recipient?.street || '').trim(),
+          x: 20,
+          y: 55,
+          fontSize: 11
+        },
+        {
+          text: `${invoice.recipient?.zip || ''} ${invoice.recipient?.city || ''}`.trim(),
+          x: 20,
+          y: 65,
+          fontSize: 11
+        },
+        {
+          text: (invoice.recipient?.country || 'Deutschland').trim(),
+          x: 20,
+          y: 75,
+          fontSize: 11
+        },
+
+        // Rechnungsinformationen rechts
+        {
+          text: 'Rechnungs-Nr.',
+          x: 120,
+          y: 45,
+          fontSize: 11
+        },
+        {
+          text: (invoice.number?.toString() || '').trim(),
+          x: 190,
+          y: 45,
+          fontSize: 11,
+          textAlign: 'right'
+        },
+        {
+          text: 'Rechnungsdatum',
+          x: 120,
+          y: 55,
+          fontSize: 11
+        },
+        {
+          text: formatDate(invoice.date),
+          x: 190,
+          y: 55,
+          fontSize: 11,
+          textAlign: 'right'
+        },
+        {
+          text: 'Lieferdatum',
+          x: 120,
+          y: 65,
+          fontSize: 11
+        },
+        {
+          text: formatDate(invoice.deliveryDate || invoice.date),
+          x: 190,
+          y: 65,
+          fontSize: 11,
+          textAlign: 'right'
+        },
+        {
+          text: 'Ihr Ansprechpartner',
+          x: 120,
+          y: 75,
+          fontSize: 11
+        },
+        {
+          text: (settings.owner || '').trim(),
+          x: 190,
+          y: 75,
+          fontSize: 11,
+          textAlign: 'right'
+        },
+
+        // Rechnungstitel
+        {
+          text: `Rechnung Nr. ${invoice.number}`,
+          x: 20,
+          y: 100,
+          fontSize: 14,
+          fontWeight: 600
+        },
+
+        // Tabellenkopf
+        {
+          text: 'Pos.',
+          x: 20,
+          y: 120,
+          fontSize: 11,
+          fontWeight: 600
+        },
+        {
+          text: 'Beschreibung',
+          x: 35,
+          y: 120,
+          fontSize: 11,
+          fontWeight: 600
+        },
+        {
+          text: 'Menge',
+          x: 120,
+          y: 120,
+          fontSize: 11,
+          fontWeight: 600,
+          textAlign: 'right'
+        },
+        {
+          text: 'Einzelpreis',
+          x: 150,
+          y: 120,
+          fontSize: 11,
+          fontWeight: 600,
+          textAlign: 'right'
+        },
+        {
+          text: 'Gesamtpreis',
+          x: 190,
+          y: 120,
+          fontSize: 11,
+          fontWeight: 600,
+          textAlign: 'right'
+        },
+
+        // Trennlinie
+        {
+          type: 'line',
+          x1: 20,
+          y1: 125,
+          x2: 190,
+          y2: 125,
+          lineWidth: 0.1
+        },
+
+        // Positionen
+        ...(invoice.positions || []).flatMap((pos, index) => {
+          const y = 135 + (index * 12);
+          const quantity = pos.quantity ? parseFloat(pos.quantity.toString()) : 0;
+          const price = pos.unitPrice ? parseFloat(pos.unitPrice.toString()) : 0;
+          const total = quantity * price;
+
+          return [
+            {
+              text: `${index + 1}.`,
+              x: 20,
+              y,
+              fontSize: 10
+            },
+            {
+              text: (pos.description || '').trim(),
+              x: 35,
+              y,
+              fontSize: 10,
+              maxWidth: 80
+            },
+            {
+              text: quantity.toFixed(2),
+              x: 120,
+              y,
+              fontSize: 10,
+              textAlign: 'right'
+            },
+            {
+              text: formatCurrency(price),
+              x: 150,
+              y,
+              fontSize: 10,
+              textAlign: 'right'
+            },
+            {
+              text: formatCurrency(total),
+              x: 190,
+              y,
+              fontSize: 10,
+              textAlign: 'right'
+            }
+          ];
+        }),
+
+        // Trennlinie vor Summen
+        {
+          type: 'line',
+          x1: 120,
+          y1: 135 + (invoice.positions?.length || 0) * 12 + 5,
+          x2: 190,
+          y2: 135 + (invoice.positions?.length || 0) * 12 + 5,
+          lineWidth: 0.1
+        },
+
+        // Summen
+        {
+          text: 'Zwischensumme:',
+          x: 120,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 15,
+          fontSize: 10
+        },
+        {
+          text: formatCurrency(totals.netTotal),
+          x: 190,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 15,
+          fontSize: 10,
+          textAlign: 'right'
+        },
+        {
+          text: 'Gesamtbetrag netto:',
+          x: 120,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 25,
+          fontSize: 10
+        },
+        {
+          text: formatCurrency(totals.netTotal),
+          x: 190,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 25,
+          fontSize: 10,
+          textAlign: 'right'
+        },
+        {
+          text: 'MwSt. 19%:',
+          x: 120,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 35,
+          fontSize: 10
+        },
+        {
+          text: formatCurrency(totals.totalVat),
+          x: 190,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 35,
+          fontSize: 10,
+          textAlign: 'right'
+        },
+
+        // Trennlinie vor Gesamtbetrag
+        {
+          type: 'line',
+          x1: 120,
+          y1: 135 + (invoice.positions?.length || 0) * 12 + 45,
+          x2: 190,
+          y2: 135 + (invoice.positions?.length || 0) * 12 + 45,
+          lineWidth: 0.1
+        },
+
+        // Gesamtbetrag
+        {
+          text: 'Gesamtbetrag:',
+          x: 120,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 55,
+          fontSize: 11,
+          fontWeight: 600
+        },
+        {
+          text: formatCurrency(totals.grossTotal),
+          x: 190,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 55,
+          fontSize: 11,
+          fontWeight: 600,
+          textAlign: 'right'
+        },
+
+        // Zahlungshinweis
+        {
+          text: 'Bitte überweisen Sie den Gesamtbetrag innerhalb von 14 Tagen.',
+          x: 20,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 70,
+          fontSize: 10
+        },
+
+        // Footer mit Trennlinie
+        {
+          type: 'line',
+          x1: 20,
+          y1: 135 + (invoice.positions?.length || 0) * 12 + 90,
+          x2: 190,
+          y2: 135 + (invoice.positions?.length || 0) * 12 + 90,
+          lineWidth: 0.5,
+          color: '#eeeeee'
+        },
+
+        // Footer-Informationen in 4 Spalten
+        {
+          text: [
+            settings.companyName || '',
+            settings.street || '',
+            `${settings.zip || ''} ${settings.city || ''}`,
+            settings.country || 'Deutschland'
+          ].filter(Boolean).join('\n'),
+          x: 20,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
+          fontSize: 8,
+          color: '#666666',
+          lineHeight: 1.2
+        },
+        {
+          text: [
+            settings.phone ? `Tel.: ${settings.phone}` : '',
+            settings.email ? `E-Mail: ${settings.email}` : '',
+            settings.website ? `Web: ${settings.website}` : ''
+          ].filter(Boolean).join('\n'),
+          x: 65,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
+          fontSize: 8,
+          color: '#666666',
+          lineHeight: 1.2
+        },
+        {
+          text: [
+            settings.taxId ? `USt-ID: ${settings.taxId}` : '',
+            settings.vatId ? `Steuer-Nr.: ${settings.vatId}` : '',
+            settings.owner ? `Inhaber/-in: ${settings.owner}` : ''
+          ].filter(Boolean).join('\n'),
+          x: 110,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
+          fontSize: 8,
+          color: '#666666',
+          lineHeight: 1.2
+        },
+        {
+          text: [
+            settings.bankDetails?.bankName ? `Bank: ${settings.bankDetails.bankName}` : '',
+            settings.bankDetails?.iban ? `IBAN: ${settings.bankDetails.iban}` : '',
+            settings.bankDetails?.bic ? `BIC: ${settings.bankDetails.bic}` : ''
+          ].filter(Boolean).join('\n'),
+          x: 155,
+          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
+          fontSize: 8,
+          color: '#666666',
+          lineHeight: 1.2
+        }
+      ],
+      orientation: 'portrait',
+      width: 210,
+      height: 297
+    });
 
     // Sende PDF als Response
-    return new NextResponse(buffer, {
+    return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="Rechnung_${invoice.number}.pdf"`

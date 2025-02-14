@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pdf from 'html-pdf';
+import puppeteer from 'puppeteer';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
-import { promisify } from 'util';
 
 // Funktion zum Ermitteln des Browser-Pfads
 function getBrowserExecutablePath() {
@@ -27,9 +26,6 @@ function getBrowserExecutablePath() {
   }
 }
 
-// Promisify the pdf.create function
-const createPdf = promisify(pdf.create);
-
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
@@ -50,7 +46,7 @@ export async function POST(req: NextRequest) {
     console.log('Berechnete Totals:', totals);
 
     // HTML für das Angebot
-    const html = `
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -353,22 +349,27 @@ export async function POST(req: NextRequest) {
       </html>
     `;
 
-    // PDF-Optionen
-    const options = {
+    // Neue PDF-Generierung mit Puppeteer
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({
       format: 'A4',
-      border: {
+      printBackground: true,
+      margin: {
         top: '20mm',
         right: '20mm',
         bottom: '20mm',
         left: '20mm'
       }
-    };
+    });
+    await browser.close();
 
-    // Generiere PDF
-    const buffer = await createPdf(html, options);
-
-    // Sende PDF als Response
-    return new NextResponse(buffer, {
+    // Sende die PDF-Datei zurück
+    return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="Angebot_${offer.number}.pdf"`
@@ -377,6 +378,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Fehler bei der PDF-Generierung:', error);
-    return NextResponse.json({ error: 'PDF konnte nicht generiert werden' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Fehler bei der PDF-Generierung' },
+      { status: 500 }
+    );
   }
 }

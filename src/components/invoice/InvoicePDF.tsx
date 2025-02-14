@@ -175,50 +175,34 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                 <table className="w-full mt-8">
                   <tbody className="text-sm">
                     {/* Zwischensumme */}
-                    <React.Fragment>
-                      <tr>
-                        <td className="py-1">Zwischensumme:</td>
-                        <td className="text-right">{formatCurrency(totals.netTotal)}</td>
-                      </tr>
-                    </React.Fragment>
+                    <tr>
+                      <td className="py-1">Zwischensumme:</td>
+                      <td className="text-right py-1">{formatCurrency(totals.netTotal)}</td>
+                    </tr>
 
-                    {/* Rabatt */}
-                    {invoice.discount && invoice.discount.value > 0 && (
-                      <React.Fragment>
-                        <tr>
-                          <td className="py-1">
-                            Rabatt ({invoice.discount.type === 'percentage' ? `${invoice.discount.value}%` : `${formatCurrency(invoice.discount.value)}`}):
-                          </td>
-                          <td className="text-right text-red-600">-{formatCurrency(totals.discountAmount)}</td>
-                        </tr>
-                      </React.Fragment>
-                    )}
-
-                    {/* Netto nach Rabatt */}
-                    <React.Fragment>
-                      <tr>
-                        <td className="py-1">Gesamtbetrag netto:</td>
-                        <td className="text-right">{formatCurrency(totals.netAfterDiscount)}</td>
-                      </tr>
-                    </React.Fragment>
+                    {/* Netto */}
+                    <tr>
+                      <td className="py-1">Gesamtbetrag netto:</td>
+                      <td className="text-right py-1">{formatCurrency(totals.netTotal)}</td>
+                    </tr>
 
                     {/* MwSt */}
-                    {Object.entries(totals.vatAmounts).map(([rate, amount]) => (
+                    {totals.vatAmounts && Object.entries(totals.vatAmounts).map(([rate, amount]) => (
                       <React.Fragment key={rate}>
                         <tr>
                           <td className="py-1">MwSt. {rate}%:</td>
-                          <td className="text-right">{formatCurrency(amount)}</td>
+                          <td className="text-right py-1">{formatCurrency(amount)}</td>
                         </tr>
                       </React.Fragment>
                     ))}
 
-                    {/* Gesamtbetrag */}
-                    <React.Fragment>
-                      <tr className="font-bold">
-                        <td className="py-1">Gesamtbetrag:</td>
-                        <td className="text-right">{formatCurrency(totals.grossTotal)}</td>
-                      </tr>
-                    </React.Fragment>
+                    {/* Brutto */}
+                    <tr className="border-t border-gray-200">
+                      <td className="py-2 font-semibold">Gesamtbetrag:</td>
+                      <td className="text-right py-2 font-semibold">
+                        {formatCurrency(totals.grossTotal)}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
 
