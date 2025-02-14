@@ -1,6 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import { generatePdf } from 'html-pdf-node';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
+import { existsSync } from 'fs';
+
+// Funktion zum Ermitteln des Browser-Pfads
+function getBrowserExecutablePath() {
+  switch (process.platform) {
+    case 'win32':
+      return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    case 'linux': {
+      // Prüfe verschiedene mögliche Pfade
+      const paths = [
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/snap/bin/chromium'
+      ];
+      const existingPath = paths.find(path => existsSync(path));
+      if (!existingPath) {
+        throw new Error('Kein unterstützter Browser gefunden. Bitte installieren Sie Google Chrome oder Chromium.');
+      }
+      return existingPath;
+    }
+    default:
+      throw new Error('Nicht unterstütztes Betriebssystem');
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,23 +46,6 @@ export async function POST(req: NextRequest) {
 
     // Debug-Ausgabe
     console.log('Berechnete Totals:', totals);
-
-    // Starte Puppeteer
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      executablePath: process.platform === 'win32' 
-        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-        : undefined
-    });
-    const page = await browser.newPage();
-
-    // Setze Viewport auf A4-Größe
-    await page.setViewport({
-      width: 794, // A4 Breite bei 96 DPI
-      height: 1123, // A4 Höhe bei 96 DPI
-      deviceScaleFactor: 2,
-    });
 
     // HTML für die Rechnung
     const html = `
@@ -365,35 +373,30 @@ export async function POST(req: NextRequest) {
       </html>
     `;
 
-    // Setze HTML-Inhalt
-    await page.setContent(html, {
-      waitUntil: 'networkidle0'
-    });
+    // PDF-Optionen
+    const options = {
+      format: 'A4',
+      margin: {
+        top: '20mm',
+        right: '20mm',
+        bottom: '20mm',
+        left: '20mm'
+      }
+    };
 
     // Generiere PDF
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '0',
-        right: '0',
-        bottom: '0',
-        left: '0'
-      }
-    });
-
-    await browser.close();
+    const buffer = await generatePdf({ content: html }, options);
 
     // Sende PDF als Response
-    return new NextResponse(pdf, {
+    return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Rechnung-${invoice.number}.pdf"`
+        'Content-Disposition': `attachment; filename="Rechnung_${invoice.number}.pdf"`
       }
     });
 
   } catch (error) {
     console.error('Fehler bei der PDF-Generierung:', error);
-    return NextResponse.json({ error: 'PDF konnte nicht erstellt werden' }, { status: 500 });
+    return NextResponse.json({ error: 'PDF konnte nicht generiert werden' }, { status: 500 });
   }
 }
