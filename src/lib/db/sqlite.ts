@@ -27,10 +27,6 @@ export class SQLiteDatabase implements DatabaseInterface {
       this.db.pragma('foreign_keys = ON');
       console.log('Foreign keys enabled');
 
-      // Lösche existierende Tabellen
-      console.log('Dropping existing tables...');
-      this.db.exec('DROP TABLE IF EXISTS settings');
-      
       console.log('Creating tables...');
       
       // Settings Tabelle
@@ -68,6 +64,44 @@ export class SQLiteDatabase implements DatabaseInterface {
           currency TEXT,
           dateFormat TEXT,
           timezone TEXT,
+          createdAt TEXT,
+          updatedAt TEXT
+        )
+      `);
+
+      // Rechnungen Tabelle
+      console.log('Creating invoices table...');
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS invoices (
+          id TEXT PRIMARY KEY,
+          number TEXT NOT NULL,
+          date TEXT,
+          dueDate TEXT,
+          status TEXT,
+          recipient TEXT,
+          positions TEXT,
+          totalNet REAL,
+          totalGross REAL,
+          vatAmounts TEXT,
+          totalVat REAL,
+          discount TEXT,
+          notes TEXT,
+          createdAt TEXT,
+          updatedAt TEXT
+        )
+      `);
+
+      // Kontakte Tabelle
+      console.log('Creating contacts table...');
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS contacts (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          email TEXT,
+          phone TEXT,
+          address TEXT,
+          taxId TEXT,
           createdAt TEXT,
           updatedAt TEXT
         )

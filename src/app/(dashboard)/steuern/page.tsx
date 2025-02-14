@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DatabaseClient } from '@/lib/db/client';
 
 interface TaxEntry {
   id: string;
@@ -20,72 +21,178 @@ interface TaxEntry {
   steuerbetrag: number;
 }
 
-const taxEntries: TaxEntry[] = [
-  {
-    id: '1',
-    label: 'Steuerpflichtige Umsätze',
-    kennziffer: '',
-    bemessungsgrundlage: 1102.50,
-    steuerbetrag: 209.48,
-  },
-  {
-    id: '2',
-    label: 'Steuerfreie Umsätze mit Vorsteuerabzug',
-    kennziffer: '',
-    bemessungsgrundlage: 0,
-    steuerbetrag: 0,
-  },
-  {
-    id: '3',
-    label: 'Steuerfreie Umsätze ohne Vorsteuerabzug',
-    kennziffer: '',
-    bemessungsgrundlage: 420.00,
-    steuerbetrag: 0,
-  },
-  {
-    id: '4',
-    label: 'Innergemeinschaftliche Erwerbe',
-    kennziffer: '',
-    bemessungsgrundlage: 0,
-    steuerbetrag: 0,
-  },
-  {
-    id: '5',
-    label: 'Leistungsempfänger als Steuerschuldner (§ 13b UStG)',
-    kennziffer: '',
-    bemessungsgrundlage: 0,
-    steuerbetrag: 0,
-  },
-  {
-    id: '6',
-    label: 'Ergänzende Angaben zu Umsätzen',
-    kennziffer: '',
-    bemessungsgrundlage: 0,
-    steuerbetrag: 0,
-  },
-  {
-    id: '7',
-    label: 'Abziehbare Vorsteuerbeträge',
-    kennziffer: '',
-    bemessungsgrundlage: 0,
-    steuerbetrag: 0,
-  },
-  {
-    id: '8',
-    label: 'Andere Steuerbeträge',
-    kennziffer: '',
-    bemessungsgrundlage: 0,
-    steuerbetrag: 0,
-  },
-];
+interface InvoicePosition {
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  totalNet: number;
+  totalGross: number;
+}
+
+interface Invoice {
+  id?: string;
+  number?: string;
+  date?: string;
+  status?: string;
+  positions: InvoicePosition[];
+  totalNet?: number;
+  totalGross?: number;
+  discount?: number;
+  discountType?: 'percentage' | 'fixed';
+  discountValue?: number;
+  vatAmounts?: { [key: string]: number };
+}
 
 export default function SteuernPage() {
   const [zeitraum, setZeitraum] = useState('Vierteljährlich');
   const [jahr, setJahr] = useState('2024');
-  const [entries] = useState<TaxEntry[]>(taxEntries);
+  const [selectedQuarter, setSelectedQuarter] = useState(1);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [taxEntries, setTaxEntries] = useState<TaxEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const zahllast = entries.reduce((sum, entry) => sum + entry.steuerbetrag, 0);
-  const kennziffer = '83';
+  // Lade die Rechnungsdaten
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        setLoading(true);
+        const db = new DatabaseClient();
+        const data = await db.listInvoices();
+        setInvoices(data);
+        calculateTaxEntries(data, selectedQuarter, parseInt(jahr));
+      } catch (error) {
+        console.error('Fehler beim Laden der Rechnungen:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInvoices();
+  }, [selectedQuarter, jahr]);
+
+  // Berechne die Steuereinträge basierend auf den Rechnungen
+  const calculateTaxEntries = (invoices: Invoice[], quarter: number, year: number) => {
+    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
+    const quarterEnd = new Date(year, quarter * 3, 0);
+
+    console.log('\n=== Debug Informationen ===');
+    console.log('Zeitraum:', quarterStart.toISOString(), 'bis', quarterEnd.toISOString());
+    console.log('Alle Rechnungen:', invoices.length);
+
+    const quarterInvoices = invoices.filter(invoice => {
+      if (!invoice.date) {
+        console.log(`Rechnung ohne Datum:`, invoice.number);
+        return false;
+      }
+      const invoiceDate = new Date(invoice.date);
+      const isInQuarter = invoiceDate >= quarterStart && invoiceDate <= quarterEnd;
+      const isBezahlt = invoice.status === 'bezahlt';
+      
+      if (!isInQuarter) {
+        console.log(`Rechnung ${invoice.number} außerhalb des Quartals:`, invoice.date);
+      }
+      if (!isBezahlt) {
+        console.log(`Rechnung ${invoice.number} nicht bezahlt:`, invoice.status);
+      }
+      
+      return isInQuarter && isBezahlt;
+    });
+
+    // Logge die gefilterten Rechnungen für das Quartal
+    console.log(`\n=== Rechnungen für Q${quarter}/${year} ===`);
+    console.log('Gefilterte Rechnungen:', quarterInvoices.length);
+    
+    if (quarterInvoices.length === 0) {
+      console.log('Keine Rechnungen für diesen Zeitraum gefunden!');
+    } else {
+      quarterInvoices.forEach(invoice => {
+        console.log(`\nRechnung ${invoice.number}:`);
+        console.log(`Datum: ${invoice.date}`);
+        console.log(`Status: ${invoice.status}`);
+        console.log(`Netto: ${invoice.totalNet?.toFixed(2)} €`);
+        console.log(`Brutto: ${invoice.totalGross?.toFixed(2)} €`);
+        console.log('MwSt-Beträge:', Object.entries(invoice.vatAmounts || {})
+          .map(([rate, amount]) => `${rate}%: ${amount.toFixed(2)} €`)
+          .join(', '));
+      });
+    }
+
+    // Initialisiere die Summen für verschiedene Steuersätze
+    const taxRateTotals: { [key: string]: { net: number; vat: number } } = {
+      '19': { net: 0, vat: 0 },
+      '7': { net: 0, vat: 0 },
+      '0': { net: 0, vat: 0 }
+    };
+
+    // Berechne die Summen für jeden Steuersatz
+    quarterInvoices.forEach(invoice => {
+      // Verwende die vorberechneten MwSt-Beträge aus der Datenbank
+      if (invoice.vatAmounts && invoice.totalNet) {
+        Object.entries(invoice.vatAmounts).forEach(([rate, vatAmount]) => {
+          const netAmount = invoice.totalNet! * (vatAmount / (invoice.totalGross! - invoice.totalNet!));
+          
+          if (!taxRateTotals[rate]) {
+            taxRateTotals[rate] = { net: 0, vat: 0 };
+          }
+          
+          taxRateTotals[rate].net += netAmount;
+          taxRateTotals[rate].vat += vatAmount;
+        });
+      }
+    });
+
+    const newTaxEntries: TaxEntry[] = [
+      {
+        id: '1',
+        label: 'Steuerpflichtige Umsätze zum Steuersatz von 19%',
+        kennziffer: '81',
+        bemessungsgrundlage: taxRateTotals['19'].net,
+        steuerbetrag: taxRateTotals['19'].vat,
+      },
+      {
+        id: '2',
+        label: 'Steuerpflichtige Umsätze zum Steuersatz von 7%',
+        kennziffer: '86',
+        bemessungsgrundlage: taxRateTotals['7'].net,
+        steuerbetrag: taxRateTotals['7'].vat,
+      },
+      {
+        id: '3',
+        label: 'Steuerfreie Umsätze ohne Vorsteuerabzug',
+        kennziffer: '89',
+        bemessungsgrundlage: taxRateTotals['0'].net,
+        steuerbetrag: 0,
+      },
+      {
+        id: '4',
+        label: 'Innergemeinschaftliche Erwerbe',
+        kennziffer: '91',
+        bemessungsgrundlage: 0,
+        steuerbetrag: 0,
+      },
+    ];
+
+    setTaxEntries(newTaxEntries);
+  };
+
+  const handleQuarterClick = (quarter: number) => {
+    setSelectedQuarter(quarter);
+  };
+
+  const getQuarterLabel = (quarter: number) => {
+    const labels = {
+      1: 'Jan - Mär',
+      2: 'Apr - Jun',
+      3: 'Jul - Sept',
+      4: 'Okt - Dez'
+    };
+    return labels[quarter as keyof typeof labels];
+  };
+
+  const zahllast = taxEntries.reduce((sum, entry) => sum + entry.steuerbetrag, 0);
+
+  if (loading) {
+    return <div className="p-8">Lade Steuerdaten...</div>;
+  }
 
   return (
     <div className="p-8">
@@ -126,22 +233,18 @@ export default function SteuernPage() {
       </div>
 
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="border rounded p-4 text-center">
-          <div className="text-sm">Jan - Mär</div>
-          <div className="text-xs">2024</div>
-        </div>
-        <div className="border rounded p-4 text-center bg-green-100">
-          <div className="text-sm">Apr - Jun</div>
-          <div className="text-xs">2024 ✓</div>
-        </div>
-        <div className="border rounded p-4 text-center bg-green-100">
-          <div className="text-sm">Jul - Sept</div>
-          <div className="text-xs">2024 ✓</div>
-        </div>
-        <div className="border rounded p-4 text-center">
-          <div className="text-sm">Okt - Dez</div>
-          <div className="text-xs">2024</div>
-        </div>
+        {[1, 2, 3, 4].map((quarter) => (
+          <div
+            key={quarter}
+            onClick={() => handleQuarterClick(quarter)}
+            className={`border rounded p-4 text-center cursor-pointer hover:bg-gray-50 ${
+              selectedQuarter === quarter ? 'bg-green-100' : ''
+            }`}
+          >
+            <div className="text-sm">{getQuarterLabel(quarter)}</div>
+            <div className="text-xs">{jahr}</div>
+          </div>
+        ))}
       </div>
 
       <Table>
@@ -154,7 +257,7 @@ export default function SteuernPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {entries.map((entry) => (
+          {taxEntries.map((entry) => (
             <TableRow key={entry.id}>
               <TableCell>{entry.label}</TableCell>
               <TableCell>{entry.kennziffer}</TableCell>
@@ -164,7 +267,7 @@ export default function SteuernPage() {
           ))}
           <TableRow>
             <TableCell colSpan={2} className="font-bold">Zahllast</TableCell>
-            <TableCell className="text-right">{kennziffer}</TableCell>
+            <TableCell className="text-right">83</TableCell>
             <TableCell className="text-right font-bold">{zahllast.toFixed(2)} €</TableCell>
           </TableRow>
         </TableBody>
