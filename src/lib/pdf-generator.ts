@@ -21,6 +21,7 @@ interface TextBlock {
   textAlign?: string;
   maxWidth?: number;
   lineHeight?: number;
+  font?: string;
 }
 
 interface ImageBlock {
@@ -52,72 +53,164 @@ interface PDFOptions {
 }
 
 function applyTextStyle(pdf: jsPDF, block: TextBlock) {
-  pdf.setFontSize(block.fontSize || 11);
-  if (block.fontWeight === 'bold' || block.fontWeight === 600) {
-    pdf.setFont('OpenSans', 'bold');
-  } else {
-    pdf.setFont('OpenSans', 'normal');
-  }
-  if (block.color) {
-    pdf.setTextColor(block.color);
+  try {
+    // Validiere Eingabeparameter
+    if (!pdf || !block) {
+      throw new Error('Ungültige Parameter für applyTextStyle');
+    }
+
+    pdf.setFontSize(block.fontSize || 11);
+    if (block.fontWeight === 'bold' || block.fontWeight === 600) {
+      pdf.setFont('OpenSans', 'bold');
+    } else {
+      pdf.setFont('OpenSans', 'normal');
+    }
+    if (block.color) {
+      pdf.setTextColor(block.color);
+    }
+  } catch (error) {
+    console.error('Fehler beim Anwenden des Textstils:', error);
+    throw error;
   }
 }
 
-export async function generatePDF(options: PDFOptions): Promise<Buffer> {
-  const pdf = new jsPDF({
-    orientation: options.orientation || 'portrait',
-    unit: 'mm',
-    format: [options.width || 210, options.height || 297]
-  });
+export async function generatePDF({ content }: PDFOptions): Promise<Buffer> {
+  try {
+    console.log('Starte PDF-Generierung...');
+    
+    // Validiere Eingabeparameter
+    if (!content || !Array.isArray(content)) {
+      throw new Error('Ungültige PDF-Inhalte');
+    }
 
-  // Registriere die Schriftarten
-  registerFonts(pdf);
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
 
-  for (const block of options.content) {
-    if ('type' in block) {
-      if (block.type === 'image') {
-        try {
+    console.log('PDF-Instanz erstellt');
+
+    for (const block of content) {
+      try {
+        if (!block) {
+          console.warn('Überspringe ungültigen Block');
+          continue;
+        }
+
+        if (block.type === 'image') {
+          console.log('Verarbeite Bild:', { x: block.x, y: block.y, width: block.width, height: block.height });
           pdf.addImage(
             block.imageData,
             'PNG',
-            block.x,
-            block.y,
-            block.width,
-            block.height
+            Number(block.x),
+            Number(block.y),
+            Number(block.width),
+            Number(block.height)
           );
-        } catch (error) {
-          console.error('Fehler beim Hinzufügen des Bildes:', error);
-        }
-      } else if (block.type === 'line') {
-        if (block.color) {
-          pdf.setDrawColor(block.color);
-        }
-        pdf.setLineWidth(block.lineWidth || 0.1);
-        pdf.line(block.x1, block.y1, block.x2, block.y2);
-      }
-    } else {
-      // Text Block
-      applyTextStyle(pdf, block);
-      
-      if (Array.isArray(block.text)) {
-        const lineHeight = block.lineHeight || 1.2;
-        block.text.forEach((line, index) => {
-          const yPos = block.y + (index * (block.fontSize || 11) * lineHeight);
-          if (block.textAlign === 'right' && block.maxWidth) {
-            pdf.text(line, block.x + block.maxWidth, yPos, { align: 'right' });
-          } else {
-            pdf.text(line, block.x, yPos);
-          }
-        });
-      } else {
-        if (block.textAlign === 'right' && block.maxWidth) {
-          pdf.text(block.text, block.x + block.maxWidth, block.y, { align: 'right' });
+        } else if (block.type === 'line') {
+          console.log('Zeichne Linie:', { x1: block.x1, y1: block.y1, x2: block.x2, y2: block.y2 });
+          pdf.setLineWidth(block.lineWidth || 0.1);
+          pdf.line(
+            Number(block.x1),
+            Number(block.y1),
+            Number(block.x2),
+            Number(block.y2)
+          );
         } else {
-          pdf.text(block.text, block.x, block.y);
+          try {
+            console.log('Verarbeite Text:', {
+              text: block.text,
+              x: block.x,
+              y: block.y,
+              align: block.textAlign,
+              font: block.font,
+              fontSize: block.fontSize
+            });
+
+            applyTextStyle(pdf, block);
+            
+            if (Array.isArray(block.text)) {
+              const lineHeight = block.lineHeight || 1.2;
+              block.text.forEach((line, index) => {
+                try {
+                  const textContent = String(line || '').trim();
+                  if (!textContent) {
+                    console.warn('Überspringe leere Textzeile');
+                    return;
+                  }
+
+                  const yPos = Number(block.y) + (index * (block.fontSize || 11) * lineHeight);
+                  let xPos = Number(block.x);
+
+                  if (block.textAlign === 'right') {
+                    const textWidth = pdf.getTextWidth(textContent);
+                    xPos = block.maxWidth ? xPos + Number(block.maxWidth) - textWidth : xPos;
+                  } else if (block.textAlign === 'center' && block.maxWidth) {
+                    const textWidth = pdf.getTextWidth(textContent);
+                    xPos = xPos + (Number(block.maxWidth) - textWidth) / 2;
+                  }
+
+                  console.log('Schreibe Textzeile:', {
+                    text: textContent,
+                    x: xPos,
+                    y: yPos,
+                    align: block.textAlign
+                  });
+
+                  pdf.text(textContent, xPos, yPos);
+                } catch (lineError) {
+                  console.error('Fehler beim Schreiben einer Textzeile:', lineError);
+                  throw lineError;
+                }
+              });
+            } else {
+              try {
+                const textContent = String(block.text || '').trim();
+                if (!textContent) {
+                  console.warn('Überspringe leeren Text');
+                  return;
+                }
+
+                let xPos = Number(block.x);
+                const yPos = Number(block.y);
+
+                if (block.textAlign === 'right') {
+                  const textWidth = pdf.getTextWidth(textContent);
+                  xPos = block.maxWidth ? xPos + Number(block.maxWidth) - textWidth : xPos;
+                } else if (block.textAlign === 'center' && block.maxWidth) {
+                  const textWidth = pdf.getTextWidth(textContent);
+                  xPos = xPos + (Number(block.maxWidth) - textWidth) / 2;
+                }
+
+                console.log('Schreibe Text:', {
+                  text: textContent,
+                  x: xPos,
+                  y: yPos,
+                  align: block.textAlign
+                });
+
+                pdf.text(textContent, xPos, yPos);
+              } catch (textError) {
+                console.error('Fehler beim Schreiben des Texts:', textError);
+                throw textError;
+              }
+            }
+          } catch (blockError) {
+            console.error('Fehler bei der Verarbeitung des Text-Blocks:', blockError);
+            throw blockError;
+          }
         }
+      } catch (blockError) {
+        console.error('Fehler bei der Verarbeitung eines Blocks:', blockError);
+        throw blockError;
       }
     }
-  }
 
-  return Buffer.from(pdf.output('arraybuffer'));
+    console.log('PDF-Generierung abgeschlossen');
+    return Buffer.from(pdf.output('arraybuffer'));
+  } catch (error) {
+    console.error('Fehler bei der PDF-Generierung:', error);
+    throw error;
+  }
 }

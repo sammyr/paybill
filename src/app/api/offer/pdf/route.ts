@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
+import fs from 'fs';
+import path from 'path';
 
 // Funktion zum Ermitteln des Browser-Pfads
 function getBrowserExecutablePath() {
@@ -25,6 +27,10 @@ function getBrowserExecutablePath() {
       throw new Error('Nicht unterstütztes Betriebssystem');
   }
 }
+
+// Lade die Schriftart
+const fontPath = path.join(process.cwd(), 'src', 'fonts', 'OpenSans-Bold.ttf');
+const fontBase64 = fs.readFileSync(fontPath).toString('base64');
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,7 +57,16 @@ export async function POST(req: NextRequest) {
       <html>
         <head>
           <meta charset="UTF-8">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
           <style>
+            @font-face {
+              font-family: 'Open Sans';
+              src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype');
+              font-weight: bold;
+              font-style: normal;
+            }
             @page {
               size: A4;
               margin: 0;
@@ -59,11 +74,11 @@ export async function POST(req: NextRequest) {
             body {
               margin: 0;
               padding: 15mm 20mm;
-              font-family: system-ui, -apple-system, sans-serif;
+              font-family: 'Open Sans', system-ui, -apple-system, sans-serif;
               font-size: 10pt;
               color: #333;
               line-height: 1.4;
-              font-weight: 300;
+              background: white;
               width: 100%;
               box-sizing: border-box;
             }

@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generatePDF } from '@/lib/pdf-generator';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
 import { formatCurrency, formatDate } from '@/lib/format-utils';
+import fs from 'fs';
+import path from 'path';
+import { pdfSettings } from '@/config/pdf-settings';
+
+// Lade die Schriftart
+const fontPath = path.join(process.cwd(), 'src', 'fonts', 'OpenSans-Bold.ttf');
+const fontBase64 = fs.readFileSync(fontPath).toString('base64');
+
+async function loadAndRegisterFonts() {
+  // Implementieren Sie die Logik zum Laden und Registrieren der Schriftarten
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,394 +41,476 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    // Lade die Schriftarten
+    try {
+      await loadAndRegisterFonts();
+      console.log('Schriftarten erfolgreich geladen');
+    } catch (fontError) {
+      console.error('Fehler beim Laden der Schriftarten:', fontError);
+      return new NextResponse(JSON.stringify({ error: 'Fehler beim Laden der Schriftarten' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Berechne die Summen
     const totals = calculateInvoiceTotals(invoice);
+    console.log('Berechnete Summen:', totals);
 
     // Generiere PDF
-    const pdfBuffer = await generatePDF({
-      content: [
-        // Logo
-        ...(settings.logo ? [{
-          type: 'image',
-          imageData: settings.logo.startsWith('data:') ? settings.logo : `data:image/png;base64,${settings.logo}`,
-          x: 120,
-          y: 15,
-          width: 70,
-          height: 12
-        }] : []),
+    try {
+      const pdfBuffer = await generatePDF({
+        content: [
+          // Logo
+          ...(settings.logo ? [{
+            type: 'image',
+            imageData: settings.logo.startsWith('data:') ? settings.logo : `data:image/png;base64,${settings.logo}`,
+            x: pdfSettings.logo.x,
+            y: pdfSettings.logo.y,
+            width: pdfSettings.logo.width,
+            height: pdfSettings.logo.height
+          }] : []),
 
-        // Absenderzeile
-        {
-          text: `${settings.companyName || ''} - ${settings.street || ''} - ${settings.zip || ''} ${settings.city || ''}`.trim(),
-          x: 20,
-          y: 25,
-          fontSize: 8,
-          color: '#666666'
-        },
+          // QR-Code
+          ...(invoice.id ? [{
+            type: 'image',
+            imageData: await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://example.com/invoices/${invoice.id}&format=png`)
+              .then(res => res.arrayBuffer())
+              .then(buffer => `data:image/png;base64,${Buffer.from(buffer).toString('base64')}`)
+              .catch(() => {
+                console.error('Fehler beim Laden des QR-Codes');
+                return '';
+              }),
+            x: 500,
+            y: 20,
+            width: 40,
+            height: 40
+          }] : []),
 
-        // QR-Code
-        ...(invoice.id ? [{
-          type: 'image',
-          imageData: await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=56x56&data=https://example.com/invoices/${invoice.id}&format=png`)
-            .then(res => res.arrayBuffer())
-            .then(buffer => `data:image/png;base64,${Buffer.from(buffer).toString('base64')}`)
-            .catch(() => {
-              console.error('Fehler beim Laden des QR-Codes');
-              return '';
-            }),
-          x: 170,
-          y: 15,
-          width: 10,
-          height: 10
-        }] : []),
+          // Absenderzeile
+          {
+            text: `${settings.company} - ${settings.street} - ${settings.zip} ${settings.city}`,
+            x: pdfSettings.margins.left,
+            y: pdfSettings.recipient.y - 5,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
 
-        // Empfänger
-        {
-          text: (invoice.recipient?.name || '').trim(),
-          x: 20,
-          y: 45,
-          fontSize: 11
-        },
-        {
-          text: (invoice.recipient?.street || '').trim(),
-          x: 20,
-          y: 55,
-          fontSize: 11
-        },
-        {
-          text: `${invoice.recipient?.zip || ''} ${invoice.recipient?.city || ''}`.trim(),
-          x: 20,
-          y: 65,
-          fontSize: 11
-        },
-        {
-          text: (invoice.recipient?.country || 'Deutschland').trim(),
-          x: 20,
-          y: 75,
-          fontSize: 11
-        },
+          // Empfänger
+          {
+            text: (invoice.recipient?.name || '').trim(),
+            x: pdfSettings.recipient.x,
+            y: pdfSettings.recipient.y,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: (invoice.recipient?.street || '').trim(),
+            x: pdfSettings.recipient.x,
+            y: pdfSettings.recipient.y + pdfSettings.recipient.lineHeight * 1,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: `${invoice.recipient?.zip || ''} ${invoice.recipient?.city || ''}`.trim(),
+            x: pdfSettings.recipient.x,
+            y: pdfSettings.recipient.y + pdfSettings.recipient.lineHeight * 2,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: (invoice.recipient?.country || 'Deutschland').trim(),
+            x: pdfSettings.recipient.x,
+            y: pdfSettings.recipient.y + pdfSettings.recipient.lineHeight * 3,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
 
-        // Rechnungsinformationen rechts
-        {
-          text: 'Rechnungs-Nr.',
-          x: 120,
-          y: 45,
-          fontSize: 11
-        },
-        {
-          text: (invoice.number?.toString() || '').trim(),
-          x: 190,
-          y: 45,
-          fontSize: 11,
-          textAlign: 'right'
-        },
-        {
-          text: 'Rechnungsdatum',
-          x: 120,
-          y: 55,
-          fontSize: 11
-        },
-        {
-          text: formatDate(invoice.date),
-          x: 190,
-          y: 55,
-          fontSize: 11,
-          textAlign: 'right'
-        },
-        {
-          text: 'Lieferdatum',
-          x: 120,
-          y: 65,
-          fontSize: 11
-        },
-        {
-          text: formatDate(invoice.deliveryDate || invoice.date),
-          x: 190,
-          y: 65,
-          fontSize: 11,
-          textAlign: 'right'
-        },
-        {
-          text: 'Ihr Ansprechpartner',
-          x: 120,
-          y: 75,
-          fontSize: 11
-        },
-        {
-          text: (settings.owner || '').trim(),
-          x: 190,
-          y: 75,
-          fontSize: 11,
-          textAlign: 'right'
-        },
+          // Rechnungsinformationen rechts
+          {
+            text: 'Rechnungs-Nr.',
+            x: pdfSettings.invoiceInfo.x,
+            y: pdfSettings.invoiceInfo.y,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: (invoice.number?.toString() || '').trim(),
+            x: pdfSettings.invoiceInfo.x + 50,
+            y: pdfSettings.invoiceInfo.y,
+            fontSize: pdfSettings.fontSize.normal,
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Rechnungsdatum',
+            x: pdfSettings.invoiceInfo.x,
+            y: pdfSettings.invoiceInfo.y + pdfSettings.invoiceInfo.lineHeight * 1,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: formatDate(invoice.date),
+            x: pdfSettings.invoiceInfo.x + 50,
+            y: pdfSettings.invoiceInfo.y + pdfSettings.invoiceInfo.lineHeight * 1,
+            fontSize: pdfSettings.fontSize.normal,
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Lieferdatum',
+            x: pdfSettings.invoiceInfo.x,
+            y: pdfSettings.invoiceInfo.y + pdfSettings.invoiceInfo.lineHeight * 2,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: formatDate(invoice.deliveryDate || invoice.date),
+            x: pdfSettings.invoiceInfo.x + 50,
+            y: pdfSettings.invoiceInfo.y + pdfSettings.invoiceInfo.lineHeight * 2,
+            fontSize: pdfSettings.fontSize.normal,
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
 
-        // Rechnungstitel
-        {
-          text: `Rechnung Nr. ${invoice.number}`,
-          x: 20,
-          y: 100,
-          fontSize: 14,
-          fontWeight: 600
-        },
+          // Rechnungstitel
+          {
+            text: `Rechnung Nr. ${invoice.number}`,
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.contentTop,
+            fontSize: pdfSettings.fontSize.large,
+            fontWeight: 'bold',
+            font: 'Open Sans'
+          },
 
-        // Tabellenkopf
-        {
-          text: 'Pos.',
-          x: 20,
-          y: 120,
-          fontSize: 11,
-          fontWeight: 600
-        },
-        {
-          text: 'Beschreibung',
-          x: 35,
-          y: 120,
-          fontSize: 11,
-          fontWeight: 600
-        },
-        {
-          text: 'Menge',
-          x: 120,
-          y: 120,
-          fontSize: 11,
-          fontWeight: 600,
-          textAlign: 'right'
-        },
-        {
-          text: 'Einzelpreis',
-          x: 150,
-          y: 120,
-          fontSize: 11,
-          fontWeight: 600,
-          textAlign: 'right'
-        },
-        {
-          text: 'Gesamtpreis',
-          x: 190,
-          y: 120,
-          fontSize: 11,
-          fontWeight: 600,
-          textAlign: 'right'
-        },
+          // Tabellenkopf
+          {
+            text: 'Pos.',
+            x: pdfSettings.columns.position,
+            y: pdfSettings.spacing.contentTop + 20,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Beschreibung',
+            x: pdfSettings.columns.description,
+            y: pdfSettings.spacing.contentTop + 20,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Menge',
+            x: pdfSettings.columns.quantity,
+            y: pdfSettings.spacing.contentTop + 20,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Einzelpreis',
+            x: pdfSettings.columns.unitPrice,
+            y: pdfSettings.spacing.contentTop + 20,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Gesamtpreis',
+            x: pdfSettings.columns.total,
+            y: pdfSettings.spacing.contentTop + 20,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
 
-        // Trennlinie
-        {
-          type: 'line',
-          x1: 20,
-          y1: 125,
-          x2: 190,
-          y2: 125,
-          lineWidth: 0.1
-        },
+          // Trennlinie
+          {
+            type: 'line',
+            x1: pdfSettings.margins.left,
+            y1: pdfSettings.spacing.contentTop + 25,
+            x2: pdfSettings.margins.right,
+            y2: pdfSettings.spacing.contentTop + 25,
+            lineWidth: 0.1
+          },
 
-        // Positionen
-        ...(invoice.positions || []).flatMap((pos, index) => {
-          const y = 135 + (index * 12);
-          const quantity = pos.quantity ? parseFloat(pos.quantity.toString()) : 0;
-          const price = pos.unitPrice ? parseFloat(pos.unitPrice.toString()) : 0;
-          const total = quantity * price;
+          // Positionen
+          ...invoice.positions?.map((pos, index) => {
+            const y = pdfSettings.spacing.contentTop + 30 + index * pdfSettings.spacing.rowHeight;
+            return [
+              {
+                text: `${index + 1}.`,
+                x: pdfSettings.columns.position,
+                y,
+                fontSize: pdfSettings.fontSize.normal,
+                font: 'Open Sans'
+              },
+              {
+                text: (pos.description || '').trim(),
+                x: pdfSettings.columns.description,
+                y,
+                fontSize: pdfSettings.fontSize.normal,
+                font: 'Open Sans'
+              },
+              {
+                text: `${pos.quantity.toFixed(2)} Tag(e)`,
+                x: pdfSettings.columns.quantity,
+                y,
+                fontSize: pdfSettings.fontSize.normal,
+                textAlign: 'right',
+                font: 'Open Sans'
+              },
+              {
+                text: formatCurrency(pos.unitPrice),
+                x: pdfSettings.columns.unitPrice,
+                y,
+                fontSize: pdfSettings.fontSize.normal,
+                textAlign: 'right',
+                font: 'Open Sans'
+              },
+              {
+                text: formatCurrency(pos.quantity * pos.unitPrice),
+                x: pdfSettings.columns.total,
+                y,
+                fontSize: pdfSettings.fontSize.normal,
+                textAlign: 'right',
+                font: 'Open Sans'
+              }
+            ];
+          }).flat() || [],
 
-          return [
-            {
-              text: `${index + 1}.`,
-              x: 20,
-              y,
-              fontSize: 10
-            },
-            {
-              text: (pos.description || '').trim(),
-              x: 35,
-              y,
-              fontSize: 10,
-              maxWidth: 80
-            },
-            {
-              text: quantity.toFixed(2),
-              x: 120,
-              y,
-              fontSize: 10,
-              textAlign: 'right'
-            },
-            {
-              text: formatCurrency(price),
-              x: 150,
-              y,
-              fontSize: 10,
-              textAlign: 'right'
-            },
-            {
-              text: formatCurrency(total),
-              x: 190,
-              y,
-              fontSize: 10,
-              textAlign: 'right'
-            }
-          ];
-        }),
+          // Trennlinie vor Summen
+          {
+            type: 'line',
+            x1: pdfSettings.margins.left,
+            y1: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 10,
+            x2: pdfSettings.margins.right,
+            y2: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 10,
+            lineWidth: 0.1
+          },
 
-        // Trennlinie vor Summen
-        {
-          type: 'line',
-          x1: 120,
-          y1: 135 + (invoice.positions?.length || 0) * 12 + 5,
-          x2: 190,
-          y2: 135 + (invoice.positions?.length || 0) * 12 + 5,
-          lineWidth: 0.1
-        },
+          // Summen
+          {
+            text: 'Zwischensumme:',
+            x: pdfSettings.columns.quantity,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 30,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: formatCurrency(totals.netTotal),
+            x: pdfSettings.columns.total,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 30,
+            fontSize: pdfSettings.fontSize.normal,
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
+          {
+            text: 'Gesamtbetrag netto:',
+            x: pdfSettings.columns.quantity,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 50,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: formatCurrency(totals.netTotal),
+            x: pdfSettings.columns.total,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 50,
+            fontSize: pdfSettings.fontSize.normal,
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
+          {
+            text: 'MwSt. 19%:',
+            x: pdfSettings.columns.quantity,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 70,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: formatCurrency(totals.totalVat),
+            x: pdfSettings.columns.total,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 70,
+            fontSize: pdfSettings.fontSize.normal,
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
 
-        // Summen
-        {
-          text: 'Zwischensumme:',
-          x: 120,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 15,
-          fontSize: 10
-        },
-        {
-          text: formatCurrency(totals.netTotal),
-          x: 190,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 15,
-          fontSize: 10,
-          textAlign: 'right'
-        },
-        {
-          text: 'Gesamtbetrag netto:',
-          x: 120,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 25,
-          fontSize: 10
-        },
-        {
-          text: formatCurrency(totals.netTotal),
-          x: 190,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 25,
-          fontSize: 10,
-          textAlign: 'right'
-        },
-        {
-          text: 'MwSt. 19%:',
-          x: 120,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 35,
-          fontSize: 10
-        },
-        {
-          text: formatCurrency(totals.totalVat),
-          x: 190,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 35,
-          fontSize: 10,
-          textAlign: 'right'
-        },
+          // Trennlinie vor Gesamtbetrag
+          {
+            type: 'line',
+            x1: pdfSettings.columns.quantity,
+            y1: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 80,
+            x2: pdfSettings.columns.total,
+            y2: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 80,
+            lineWidth: 0.1
+          },
 
-        // Trennlinie vor Gesamtbetrag
-        {
-          type: 'line',
-          x1: 120,
-          y1: 135 + (invoice.positions?.length || 0) * 12 + 45,
-          x2: 190,
-          y2: 135 + (invoice.positions?.length || 0) * 12 + 45,
-          lineWidth: 0.1
-        },
+          // Gesamtbetrag
+          {
+            text: 'Gesamtbetrag:',
+            x: pdfSettings.columns.quantity,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 100,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            font: 'Open Sans'
+          },
+          {
+            text: formatCurrency(totals.grossTotal),
+            x: pdfSettings.columns.total,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 100,
+            fontSize: pdfSettings.fontSize.normal,
+            fontWeight: 'bold',
+            textAlign: 'right',
+            font: 'Open Sans'
+          },
 
-        // Gesamtbetrag
-        {
-          text: 'Gesamtbetrag:',
-          x: 120,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 55,
-          fontSize: 11,
-          fontWeight: 600
-        },
-        {
-          text: formatCurrency(totals.grossTotal),
-          x: 190,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 55,
-          fontSize: 11,
-          fontWeight: 600,
-          textAlign: 'right'
-        },
+          // Zahlungshinweis
+          {
+            text: 'Bitte überweisen Sie den Gesamtbetrag innerhalb von 14 Tagen.',
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 130,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: 'Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen',
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 145,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
+          {
+            text: 'auf das unten angegebene Konto.',
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.contentTop + 30 + (invoice.positions?.length || 0) * pdfSettings.spacing.rowHeight + 160,
+            fontSize: pdfSettings.fontSize.normal,
+            font: 'Open Sans'
+          },
 
-        // Zahlungshinweis
-        {
-          text: 'Bitte überweisen Sie den Gesamtbetrag innerhalb von 14 Tagen.',
-          x: 20,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 70,
-          fontSize: 10
-        },
+          // Footer mit Trennlinie
+          {
+            type: 'line',
+            x1: pdfSettings.margins.left,
+            y1: pdfSettings.spacing.footerTop,
+            x2: pdfSettings.margins.right,
+            y2: pdfSettings.spacing.footerTop,
+            lineWidth: 0.1
+          },
 
-        // Footer mit Trennlinie
-        {
-          type: 'line',
-          x1: 20,
-          y1: 135 + (invoice.positions?.length || 0) * 12 + 90,
-          x2: 190,
-          y2: 135 + (invoice.positions?.length || 0) * 12 + 90,
-          lineWidth: 0.5,
-          color: '#eeeeee'
-        },
+          // Footer-Informationen
+          {
+            text: `${settings.company}`,
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.footerTop + 10,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `Tel.: ${settings.phone}`,
+            x: pdfSettings.margins.left + 100,
+            y: pdfSettings.spacing.footerTop + 10,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `USt-ID: ${settings.taxId}`,
+            x: pdfSettings.margins.left + 200,
+            y: pdfSettings.spacing.footerTop + 10,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `${settings.street}`,
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.footerTop + 20,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `E-Mail: ${settings.email}`,
+            x: pdfSettings.margins.left + 100,
+            y: pdfSettings.spacing.footerTop + 20,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `Steuer-Nr.: ${settings.vatId}`,
+            x: pdfSettings.margins.left + 200,
+            y: pdfSettings.spacing.footerTop + 20,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `${settings.zip} ${settings.city}`,
+            x: pdfSettings.margins.left,
+            y: pdfSettings.spacing.footerTop + 30,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `Web: ${settings.website}`,
+            x: pdfSettings.margins.left + 100,
+            y: pdfSettings.spacing.footerTop + 30,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          },
+          {
+            text: `Inhaber/in: ${settings.owner}`,
+            x: pdfSettings.margins.left + 200,
+            y: pdfSettings.spacing.footerTop + 30,
+            fontSize: pdfSettings.fontSize.small,
+            color: pdfSettings.colors.gray,
+            font: 'Open Sans'
+          }
+        ],
+        fonts: [
+          {
+            name: 'Open Sans',
+            data: fontBase64,
+            format: 'truetype',
+            weight: 'bold'
+          }
+        ],
+        orientation: 'portrait',
+        width: 210,
+        height: 297,
+        font: 'Open Sans'
+      });
 
-        // Footer-Informationen in 4 Spalten
-        {
-          text: [
-            settings.companyName || '',
-            settings.street || '',
-            `${settings.zip || ''} ${settings.city || ''}`,
-            settings.country || 'Deutschland'
-          ].filter(Boolean).join('\n'),
-          x: 20,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
-          fontSize: 8,
-          color: '#666666',
-          lineHeight: 1.2
-        },
-        {
-          text: [
-            settings.phone ? `Tel.: ${settings.phone}` : '',
-            settings.email ? `E-Mail: ${settings.email}` : '',
-            settings.website ? `Web: ${settings.website}` : ''
-          ].filter(Boolean).join('\n'),
-          x: 65,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
-          fontSize: 8,
-          color: '#666666',
-          lineHeight: 1.2
-        },
-        {
-          text: [
-            settings.taxId ? `USt-ID: ${settings.taxId}` : '',
-            settings.vatId ? `Steuer-Nr.: ${settings.vatId}` : '',
-            settings.owner ? `Inhaber/-in: ${settings.owner}` : ''
-          ].filter(Boolean).join('\n'),
-          x: 110,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
-          fontSize: 8,
-          color: '#666666',
-          lineHeight: 1.2
-        },
-        {
-          text: [
-            settings.bankDetails?.bankName ? `Bank: ${settings.bankDetails.bankName}` : '',
-            settings.bankDetails?.iban ? `IBAN: ${settings.bankDetails.iban}` : '',
-            settings.bankDetails?.bic ? `BIC: ${settings.bankDetails.bic}` : ''
-          ].filter(Boolean).join('\n'),
-          x: 155,
-          y: 135 + (invoice.positions?.length || 0) * 12 + 100,
-          fontSize: 8,
-          color: '#666666',
-          lineHeight: 1.2
+      console.log('PDF erfolgreich generiert');
+
+      return new NextResponse(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="Rechnung_${invoice.number}.pdf"`
         }
-      ],
-      orientation: 'portrait',
-      width: 210,
-      height: 297
-    });
-
-    // Sende PDF als Response
-    return new NextResponse(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Rechnung_${invoice.number}.pdf"`
-      }
-    });
-
+      });
+    } catch (pdfError) {
+      console.error('Fehler bei der PDF-Generierung:', pdfError);
+      return new NextResponse(JSON.stringify({ error: `Fehler bei der PDF-Generierung: ${pdfError.message}` }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   } catch (error) {
-    console.error('Fehler bei der PDF-Generierung:', error);
-    return NextResponse.json({ error: 'PDF konnte nicht generiert werden' }, { status: 500 });
+    console.error('Allgemeiner Fehler:', error);
+    return new NextResponse(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

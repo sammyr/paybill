@@ -160,49 +160,40 @@ function InvoicePreviewContent() {
   };
 
   const handleDownload = async () => {
-    if (!invoice) return;
-
     try {
-      toast({
-        title: "PDF wird erstellt",
-        description: "Bitte warten Sie einen Moment...",
-      });
+      setIsLoading(true);
 
+      // PDF generieren
       const response = await fetch('/api/invoice/pdf', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ invoice, settings })
+        body: JSON.stringify(invoice)
       });
 
       if (!response.ok) {
-        throw new Error('PDF konnte nicht erstellt werden');
+        const errorData = await response.json();
+        console.error('PDF-Generierung fehlgeschlagen:', errorData);
+        throw new Error(errorData.error || 'PDF konnte nicht erstellt werden');
       }
 
       // PDF-Blob erstellen und herunterladen
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Rechnung-${invoice.number}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Rechnung_${invoice.number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
-      toast({
-        title: "PDF erfolgreich erstellt",
-        description: "Die Rechnung wurde als PDF exportiert.",
-      });
-
+      setIsLoading(false);
     } catch (error) {
-      console.error('Fehler beim PDF-Export:', error);
-      toast({
-        title: "Fehler beim PDF-Export",
-        description: "Die PDF konnte nicht erstellt werden.",
-        variant: "destructive",
-      });
+      console.error('Fehler beim PDF-Download:', error);
+      setIsLoading(false);
+      toast.error(error.message || 'PDF konnte nicht erstellt werden');
     }
   };
 
