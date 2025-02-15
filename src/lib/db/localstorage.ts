@@ -3,6 +3,26 @@ import { DatabaseInterface, Contact, Invoice, Settings, Tax, Offer } from './int
 const isServer = typeof window === 'undefined';
 const memoryStorage: { [key: string]: any } = {};
 
+const defaultSettings: Settings = {
+  id: '1',
+  companyName: '',
+  companyAddress: '',
+  companyZip: '',
+  companyCity: '',
+  companyCountry: '',
+  companyEmail: '',
+  companyPhone: '',
+  companyWebsite: '',
+  companyTaxId: '',
+  companyVatId: '',
+  companyRegistrationNumber: '',
+  bankName: '',
+  bankIban: '',
+  bankBic: '',
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
+
 export class LocalStorageDatabase implements DatabaseInterface {
   private getStorage(): Storage | typeof memoryStorage {
     return isServer ? memoryStorage : window.localStorage;
@@ -28,14 +48,14 @@ export class LocalStorageDatabase implements DatabaseInterface {
     }
   }
 
-  private getItem<T>(key: string): T | null {
+  private getItem<T>(key: string, defaultValue: T | null = null): T | null {
     try {
       const storage = this.getStorage();
       const data = storage[key];
-      return data ? JSON.parse(data) : null;
+      return data ? JSON.parse(data) : defaultValue;
     } catch (error) {
       console.warn(`Fehler beim Laden von ${key}:`, error);
-      return null;
+      return defaultValue;
     }
   }
 
@@ -187,17 +207,17 @@ export class LocalStorageDatabase implements DatabaseInterface {
   }
 
   // Einstellungen
-  async getSettings(): Promise<Settings | null> {
-    return this.getItem<Settings>('settings');
+  async getSettings(): Promise<Settings> {
+    const settings = this.getItem<Settings>('settings', defaultSettings);
+    return settings || defaultSettings;
   }
 
   async updateSettings(settings: Partial<Settings>): Promise<Settings> {
-    const currentSettings = await this.getSettings() || {};
-    const now = new Date();
+    const currentSettings = await this.getSettings();
     const updatedSettings: Settings = {
       ...currentSettings,
       ...settings,
-      updatedAt: now
+      updatedAt: new Date()
     };
     this.setItem('settings', updatedSettings);
     return updatedSettings;
