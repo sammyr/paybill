@@ -3,21 +3,33 @@ import { randomUUID } from 'crypto';
 import { DatabaseInterface } from '@/lib/db/interfaces';
 import { getDatabase } from '@/lib/db';
 
-const db: DatabaseInterface = getDatabase();
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
   const id = searchParams.get('id');
 
   try {
+    if (typeof window === 'undefined') {
+      return NextResponse.json(
+        { error: 'Diese Aktion ist nur im Browser verfügbar' },
+        { status: 400 }
+      );
+    }
+
+    const db = getDatabase();
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Datenbank ist nicht verfügbar' },
+        { status: 500 }
+      );
+    }
+
     switch (action) {
       case 'listContacts': {
         const contacts = await db.listContacts();
         return NextResponse.json(contacts);
       }
       case 'getContact': {
-        const id = searchParams.get('id');
         if (!id) {
           return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
         }
@@ -64,10 +76,24 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const action = searchParams.get('action');
-
   try {
+    if (typeof window === 'undefined') {
+      return NextResponse.json(
+        { error: 'Diese Aktion ist nur im Browser verfügbar' },
+        { status: 400 }
+      );
+    }
+
+    const db = getDatabase();
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Datenbank ist nicht verfügbar' },
+        { status: 500 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
     const body = await request.json();
 
     switch (action) {

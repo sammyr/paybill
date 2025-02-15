@@ -1,33 +1,56 @@
 import { DatabaseInterface, Contact, Invoice, Settings, Tax, Offer } from './interfaces';
 
 export class LocalStorageDatabase implements DatabaseInterface {
+  private storage: Storage | null = null;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.storage = window.localStorage;
+    }
+  }
+
+  private getCollection<T>(key: string): T[] {
+    if (!this.storage) {
+      return [];
+    }
+    const data = this.storage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  }
+
+  private setCollection<T>(key: string, data: T[]): void {
+    if (!this.storage) {
+      console.warn('LocalStorage ist nicht verfügbar - Daten werden nicht gespeichert');
+      return;
+    }
+    this.storage.setItem(key, JSON.stringify(data));
+  }
+
   private getItem<T>(key: string): T | null {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
-    } catch (e) {
-      console.error(`Fehler beim Laden von ${key}:`, e);
+    if (!this.storage) {
       return null;
     }
+    const data = this.storage.getItem(key);
+    return data ? JSON.parse(data) : null;
   }
 
-  private setItem<T>(key: string, value: T): void {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      console.error(`Fehler beim Speichern von ${key}:`, e);
+  private setItem<T>(key: string, data: T): void {
+    if (!this.storage) {
+      console.warn('LocalStorage ist nicht verfügbar - Daten werden nicht gespeichert');
+      return;
     }
+    this.storage.setItem(key, JSON.stringify(data));
   }
 
-  private getCollection<T>(name: string): T[] {
-    return this.getItem<T[]>(`paybill_${name}`) || [];
+  // Kontakte
+  async listContacts(): Promise<Contact[]> {
+    return this.getCollection<Contact>('contacts');
   }
 
-  private setCollection<T>(name: string, items: T[]): void {
-    this.setItem(`paybill_${name}`, items);
+  async getContact(id: string): Promise<Contact | null> {
+    const contacts = this.getCollection<Contact>('contacts');
+    return contacts.find(contact => contact.id === id) || null;
   }
 
-  // Contacts
   async createContact(contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
     const contacts = this.getCollection<Contact>('contacts');
     const now = new Date();
@@ -42,45 +65,38 @@ export class LocalStorageDatabase implements DatabaseInterface {
     return newContact;
   }
 
-  async getContact(id: string): Promise<Contact | null> {
-    const contacts = this.getCollection<Contact>('contacts');
-    return contacts.find(c => c.id === id) || null;
-  }
-
   async updateContact(id: string, contact: Partial<Contact>): Promise<Contact> {
     const contacts = this.getCollection<Contact>('contacts');
     const index = contacts.findIndex(c => c.id === id);
-    if (index === -1) throw new Error('Contact not found');
-    
+    if (index === -1) {
+      throw new Error('Kontakt nicht gefunden');
+    }
     const now = new Date();
     contacts[index] = {
       ...contacts[index],
       ...contact,
       updatedAt: now
     };
-    
     this.setCollection('contacts', contacts);
     return contacts[index];
   }
 
   async deleteContact(id: string): Promise<void> {
     const contacts = this.getCollection<Contact>('contacts');
-    this.setCollection('contacts', contacts.filter(c => c.id !== id));
+    const filtered = contacts.filter(contact => contact.id !== id);
+    this.setCollection('contacts', filtered);
   }
 
-  async listContacts(): Promise<Contact[]> {
-    return this.getCollection<Contact>('contacts');
+  // Rechnungen
+  async listInvoices(): Promise<Invoice[]> {
+    return this.getCollection<Invoice>('invoices');
   }
 
-  async getAllContacts(): Promise<Contact[]> {
-    return this.listContacts();
+  async getInvoice(id: string): Promise<Invoice | null> {
+    const invoices = this.getCollection<Invoice>('invoices');
+    return invoices.find(invoice => invoice.id === id) || null;
   }
 
-  async getContacts(): Promise<Contact[]> {
-    return this.listContacts();
-  }
-
-  // Invoices
   async createInvoice(invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice> {
     const invoices = this.getCollection<Invoice>('invoices');
     const now = new Date();
@@ -95,39 +111,38 @@ export class LocalStorageDatabase implements DatabaseInterface {
     return newInvoice;
   }
 
-  async getInvoice(id: string): Promise<Invoice> {
-    const invoices = this.getCollection<Invoice>('invoices');
-    const invoice = invoices.find(i => i.id === id);
-    if (!invoice) throw new Error('Invoice not found');
-    return invoice;
-  }
-
   async updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice> {
     const invoices = this.getCollection<Invoice>('invoices');
     const index = invoices.findIndex(i => i.id === id);
-    if (index === -1) throw new Error('Invoice not found');
-    
+    if (index === -1) {
+      throw new Error('Rechnung nicht gefunden');
+    }
     const now = new Date();
     invoices[index] = {
       ...invoices[index],
       ...invoice,
       updatedAt: now
     };
-    
     this.setCollection('invoices', invoices);
     return invoices[index];
   }
 
   async deleteInvoice(id: string): Promise<void> {
     const invoices = this.getCollection<Invoice>('invoices');
-    this.setCollection('invoices', invoices.filter(i => i.id !== id));
+    const filtered = invoices.filter(invoice => invoice.id !== id);
+    this.setCollection('invoices', filtered);
   }
 
-  async listInvoices(): Promise<Invoice[]> {
-    return this.getCollection<Invoice>('invoices');
+  // Angebote
+  async listOffers(): Promise<Offer[]> {
+    return this.getCollection<Offer>('offers');
   }
 
-  // Offers
+  async getOffer(id: string): Promise<Offer | null> {
+    const offers = this.getCollection<Offer>('offers');
+    return offers.find(offer => offer.id === id) || null;
+  }
+
   async createOffer(offer: Omit<Offer, 'id' | 'createdAt' | 'updatedAt'>): Promise<Offer> {
     const offers = this.getCollection<Offer>('offers');
     const now = new Date();
@@ -142,64 +157,50 @@ export class LocalStorageDatabase implements DatabaseInterface {
     return newOffer;
   }
 
-  async getOffer(id: string): Promise<Offer | null> {
-    const offers = this.getCollection<Offer>('offers');
-    return offers.find(o => o.id === id) || null;
-  }
-
   async updateOffer(id: string, offer: Partial<Offer>): Promise<Offer> {
     const offers = this.getCollection<Offer>('offers');
     const index = offers.findIndex(o => o.id === id);
-    if (index === -1) throw new Error('Offer not found');
-    
+    if (index === -1) {
+      throw new Error('Angebot nicht gefunden');
+    }
     const now = new Date();
     offers[index] = {
       ...offers[index],
       ...offer,
       updatedAt: now
     };
-    
     this.setCollection('offers', offers);
     return offers[index];
   }
 
   async deleteOffer(id: string): Promise<void> {
     const offers = this.getCollection<Offer>('offers');
-    this.setCollection('offers', offers.filter(o => o.id !== id));
+    const filtered = offers.filter(offer => offer.id !== id);
+    this.setCollection('offers', filtered);
   }
 
-  async listOffers(): Promise<Offer[]> {
-    return this.getCollection<Offer>('offers');
-  }
-
-  async resetOffers(): Promise<void> {
-    this.setCollection('offers', []);
-  }
-
-  // Settings
-  async getSettings(): Promise<Settings> {
-    return this.getItem<Settings>('paybill_settings') || {};
+  // Einstellungen
+  async getSettings(): Promise<Settings | null> {
+    return this.getItem<Settings>('settings');
   }
 
   async updateSettings(settings: Partial<Settings>): Promise<Settings> {
+    const currentSettings = await this.getSettings() || {};
     const now = new Date();
-    const currentSettings = await this.getSettings();
-    const updatedSettings = {
+    const updatedSettings: Settings = {
       ...currentSettings,
       ...settings,
       updatedAt: now
     };
-    
-    if (!currentSettings.id) {
-      updatedSettings.id = crypto.randomUUID();
-      updatedSettings.createdAt = now;
-    }
-    
-    this.setItem('paybill_settings', updatedSettings);
+    this.setItem('settings', updatedSettings);
     return updatedSettings;
   }
 
-  // Taxes
+  // Steuern
+  async listTaxes(): Promise<Tax[]> {
+    return this.getCollection<Tax>('taxes');
+  }
+
   async createTax(tax: Omit<Tax, 'id' | 'createdAt' | 'updatedAt'>): Promise<Tax> {
     const taxes = this.getCollection<Tax>('taxes');
     const now = new Date();
@@ -214,33 +215,25 @@ export class LocalStorageDatabase implements DatabaseInterface {
     return newTax;
   }
 
-  async getTax(id: string): Promise<Tax | null> {
-    const taxes = this.getCollection<Tax>('taxes');
-    return taxes.find(t => t.id === id) || null;
-  }
-
   async updateTax(id: string, tax: Partial<Tax>): Promise<Tax> {
     const taxes = this.getCollection<Tax>('taxes');
     const index = taxes.findIndex(t => t.id === id);
-    if (index === -1) throw new Error('Tax not found');
-    
+    if (index === -1) {
+      throw new Error('Steuer nicht gefunden');
+    }
     const now = new Date();
     taxes[index] = {
       ...taxes[index],
       ...tax,
       updatedAt: now
     };
-    
     this.setCollection('taxes', taxes);
     return taxes[index];
   }
 
   async deleteTax(id: string): Promise<void> {
     const taxes = this.getCollection<Tax>('taxes');
-    this.setCollection('taxes', taxes.filter(t => t.id !== id));
-  }
-
-  async listTaxes(): Promise<Tax[]> {
-    return this.getCollection<Tax>('taxes');
+    const filtered = taxes.filter(tax => tax.id !== id);
+    this.setCollection('taxes', filtered);
   }
 }
