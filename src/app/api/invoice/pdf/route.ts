@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
     console.log('Berechnete Totals:', totals);
 
     // Starte Puppeteer mit Debug-Ausgabe
-    console.log('Starte Puppeteer mit Pfad:', process.env.PUPPETEER_EXECUTABLE_PATH);
+    const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_BIN || '/usr/bin/chromium-browser';
+    console.log('Starte Puppeteer mit Pfad:', chromePath);
+    
     const browser = await puppeteer.launch({
       headless: 'new',
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+      executablePath: chromePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
