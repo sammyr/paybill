@@ -1,6 +1,6 @@
 {
   "type": "docker",
-  "buildPack": "compose",
-  "deploymentType": "compose",
-  "composeFile": "./coolify.yaml"
+  "buildPack": "dockerfile",
+  "deploymentType": "dockerfile",
+  "dockerfilePath": "./Dockerfile"
 }
