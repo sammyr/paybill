@@ -1,0 +1,11 @@
+[setup]
+apt_pkgs = ["chromium", "chromium-browser"]
+
+[build]
+cmd = "npm install && npm run build"
+
+[start]
+cmd = "npm run start"
+
+[environment]
+NODE_ENV = "production"
