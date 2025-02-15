@@ -1,11 +1,11 @@
-[phases.setup]
-aptPkgs = ["chromium"]
+[setup]
+apt_pkgs = ["chromium"]
 
-[phases.build]
-cmds = ["npm install", "npm run build"]
+[build]
+cmd = "npm install && npm run build"
 
-[phases.start]
+[start]
 cmd = "npm run start"
 
-[variables]
+[environment]
 PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
