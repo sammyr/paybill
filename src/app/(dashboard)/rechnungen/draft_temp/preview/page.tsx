@@ -80,6 +80,18 @@ function InvoicePreviewContent() {
           return;
         }
 
+        // Versuche zuerst die Einstellungen aus dem localStorage zu laden
+        let settingsData = null;
+        try {
+          const cachedSettings = localStorage.getItem('app_settings');
+          if (cachedSettings) {
+            settingsData = JSON.parse(cachedSettings);
+            console.log('Einstellungen aus localStorage geladen:', settingsData);
+          }
+        } catch (e) {
+          console.warn('Fehler beim Laden der Einstellungen aus localStorage:', e);
+        }
+
         const db = getDatabase();
         const invoices = await db.listInvoices();
         
@@ -133,9 +145,21 @@ function InvoicePreviewContent() {
           setInvoice(invoice);
         }
 
-        // Lade Einstellungen
-        const loadedSettings = await db.getSettings();
-        setSettings(loadedSettings);
+        // Wenn keine Einstellungen im localStorage, lade sie aus der Datenbank
+        if (!settingsData) {
+          const loadedSettings = await db.getSettings();
+          settingsData = loadedSettings;
+          
+          // Speichere die Einstellungen im localStorage für zukünftige Verwendung
+          try {
+            localStorage.setItem('app_settings', JSON.stringify(loadedSettings));
+            console.log('Einstellungen im localStorage gespeichert');
+          } catch (e) {
+            console.warn('Fehler beim Speichern der Einstellungen im localStorage:', e);
+          }
+        }
+
+        setSettings(settingsData);
       } catch (error) {
         console.error('Fehler beim Laden der Rechnungsdaten:', error);
         toast({

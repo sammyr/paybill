@@ -1,20 +1,13 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Inter } from 'next/font/google'
+import { Open_Sans } from 'next/font/google'
+import { Metadata } from 'next'
+
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const inter = Inter({ subsets: ['latin'] })
+const openSans = Open_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: "Paybill",
@@ -30,12 +23,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de">
+    <html lang="de" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="icon" href="/favicon.ico" type="image/x-icon" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased`}>
+      <body className={`${openSans.className} antialiased`}>
         <main className="min-h-screen">
           {children}
         </main>
