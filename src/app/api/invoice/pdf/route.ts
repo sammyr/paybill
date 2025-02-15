@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
 
     // Starte Puppeteer
     const browser = await puppeteer.launch({
-      headless: 'new'
+      executablePath: '/usr/bin/chromium-browser',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
 
