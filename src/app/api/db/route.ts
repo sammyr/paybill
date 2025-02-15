@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { DatabaseInterface } from '@/lib/db/interfaces';
+import { getDatabase } from '@/lib/db';
 
-// Server-side: Dynamischer Import von SQLite
-const { SQLiteDatabase } = require('@/lib/db/sqlite');
-const db: DatabaseInterface = new SQLiteDatabase();
+const db: DatabaseInterface = getDatabase();
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,7 +19,7 @@ export async function GET(request: Request) {
       case 'getContact': {
         const id = searchParams.get('id');
         if (!id) {
-          return NextResponse.json({ error: 'No id provided' }, { status: 400 });
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
         }
         const contact = await db.getContact(id);
         return NextResponse.json(contact);
@@ -30,9 +29,8 @@ export async function GET(request: Request) {
         return NextResponse.json(invoices);
       }
       case 'getInvoice': {
-        const id = searchParams.get('id');
         if (!id) {
-          return NextResponse.json({ error: 'No id provided' }, { status: 400 });
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
         }
         const invoice = await db.getInvoice(id);
         return NextResponse.json(invoice);
@@ -42,166 +40,126 @@ export async function GET(request: Request) {
         return NextResponse.json(offers);
       }
       case 'getOffer': {
-        const id = searchParams.get('id');
         if (!id) {
-          return NextResponse.json({ error: 'No id provided' }, { status: 400 });
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
         }
         const offer = await db.getOffer(id);
         return NextResponse.json(offer);
       }
       case 'getSettings': {
         const settings = await db.getSettings();
-        return NextResponse.json(settings || {});
+        return NextResponse.json(settings);
       }
       case 'listTaxes': {
         const taxes = await db.listTaxes();
         return NextResponse.json(taxes);
       }
       default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        return NextResponse.json({ error: 'Ungültige Aktion' }, { status: 400 });
     }
   } catch (error) {
-    console.error('Database error:', error);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error('Fehler bei der Datenbankabfrage:', error);
+    return NextResponse.json({ error: 'Interner Serverfehler' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  const now = new Date().toISOString();
-  
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get('action');
+
   try {
     const body = await request.json();
-    const { action, data } = body;
-    console.log('API POST request:', { action, data });
 
     switch (action) {
       case 'createContact': {
-        const contact = await db.createContact(data);
+        const contact = await db.createContact(body);
         return NextResponse.json(contact);
       }
       case 'updateContact': {
-        const { id, ...contactData } = data;
-        const contact = await db.updateContact(id, contactData);
+        const { id, ...data } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        const contact = await db.updateContact(id, data);
         return NextResponse.json(contact);
       }
       case 'deleteContact': {
-        await db.deleteContact(data.id);
+        const { id } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        await db.deleteContact(id);
         return NextResponse.json({ success: true });
       }
       case 'createInvoice': {
-        const invoice = await db.createInvoice(data);
+        const invoice = await db.createInvoice(body);
         return NextResponse.json(invoice);
       }
       case 'updateInvoice': {
-        const { id, ...invoiceData } = data;
-        const invoice = await db.updateInvoice(id, invoiceData);
+        const { id, ...data } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        const invoice = await db.updateInvoice(id, data);
         return NextResponse.json(invoice);
       }
       case 'deleteInvoice': {
-        await db.deleteInvoice(data.id);
+        const { id } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        await db.deleteInvoice(id);
         return NextResponse.json({ success: true });
       }
       case 'createOffer': {
-        const offer = await db.createOffer(data);
+        const offer = await db.createOffer(body);
         return NextResponse.json(offer);
       }
       case 'updateOffer': {
-        const { id, ...offerData } = data;
-        const offer = await db.updateOffer(id, offerData);
+        const { id, ...data } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        const offer = await db.updateOffer(id, data);
         return NextResponse.json(offer);
       }
       case 'deleteOffer': {
-        await db.deleteOffer(data.id);
+        const { id } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        await db.deleteOffer(id);
         return NextResponse.json({ success: true });
       }
       case 'updateSettings': {
-        console.log('Updating settings with data:', data);
-        
-        // Normalisiere die Daten vor dem Speichern
-        const normalizedData = { ...data };
-        console.log('Initial normalized data:', normalizedData);
-        
-        // Entferne nicht benötigte Felder
-        delete normalizedData.owner;
-        
-        // Verarbeite bankDetails
-        if (normalizedData.bankDetails) {
-          console.log('Raw bankDetails:', normalizedData.bankDetails);
-          
-          const bankDetails = typeof normalizedData.bankDetails === 'string'
-            ? JSON.parse(normalizedData.bankDetails)
-            : normalizedData.bankDetails;
-            
-          console.log('Parsed bankDetails:', bankDetails);
-          
-          // Speichere die einzelnen Felder
-          normalizedData.accountHolder = bankDetails.accountHolder || '';
-          normalizedData.bankName = bankDetails.bankName || '';
-          normalizedData.bankIban = bankDetails.iban || '';
-          normalizedData.bankBic = bankDetails.bic || '';
-          normalizedData.bankSwift = bankDetails.swift || '';
-          
-          console.log('Extracted bank fields:', {
-            accountHolder: normalizedData.accountHolder,
-            bankName: normalizedData.bankName,
-            bankIban: normalizedData.bankIban,
-            bankBic: normalizedData.bankBic,
-            bankSwift: normalizedData.bankSwift
-          });
-        }
-        
-        // Entferne das bankDetails-Objekt
-        delete normalizedData.bankDetails;
-        
-        console.log('Final normalized data:', normalizedData);
-        
-        // Aktualisiere die Einstellungen
-        const updatedSettings = await db.updateSettings(normalizedData);
-        console.log('Settings updated in DB:', updatedSettings);
-        
-        return NextResponse.json(updatedSettings);
+        const settings = await db.updateSettings(body);
+        return NextResponse.json(settings);
       }
       case 'createTax': {
-        const id = randomUUID();
-        const stmt = db.prepare(`
-          INSERT INTO taxes (id, name, rate, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?)
-        `);
-        stmt.run(
-          id,
-          data.name,
-          data.rate,
-          now,
-          now
-        );
-        return NextResponse.json({ ...data, id, createdAt: now, updatedAt: now });
+        const tax = await db.createTax(body);
+        return NextResponse.json(tax);
       }
       case 'updateTax': {
-        const updates = Object.entries(data)
-          .filter(([key]) => key !== 'id')
-          .map(([key]) => `${key} = ?`)
-          .join(', ');
-        const values = [...Object.entries(data)
-          .filter(([key]) => key !== 'id')
-          .map(([, value]) => value), now, data.id];
-        
-        const stmt = db.prepare(`
-          UPDATE taxes 
-          SET ${updates}, updatedAt = ?
-          WHERE id = ?
-        `);
-        stmt.run(...values);
-        return NextResponse.json({ ...data, updatedAt: now });
+        const { id, ...data } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        const tax = await db.updateTax(id, data);
+        return NextResponse.json(tax);
       }
       case 'deleteTax': {
-        db.prepare('DELETE FROM taxes WHERE id = ?').run(data.id);
+        const { id } = body;
+        if (!id) {
+          return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 });
+        }
+        await db.deleteTax(id);
         return NextResponse.json({ success: true });
       }
       default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        return NextResponse.json({ error: 'Ungültige Aktion' }, { status: 400 });
     }
   } catch (error) {
-    console.error('Database error:', error);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error('Fehler bei der Datenbankoperation:', error);
+    return NextResponse.json({ error: 'Interner Serverfehler' }, { status: 500 });
   }
 }
