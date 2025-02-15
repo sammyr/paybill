@@ -25,11 +25,13 @@ export async function POST(req: NextRequest) {
     // Starte Puppeteer
     const browser = await puppeteer.launch({
       headless: 'new',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-software-rasterizer'
       ]
     });
     const page = await browser.newPage();
