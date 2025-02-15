@@ -1,44 +1,51 @@
 import { DatabaseInterface, Contact, Invoice, Settings, Tax, Offer } from './interfaces';
 
-export class LocalStorageDatabase implements DatabaseInterface {
-  private storage: Storage | null = null;
+const isServer = typeof window === 'undefined';
+const memoryStorage: { [key: string]: any } = {};
 
-  constructor() {
-    if (typeof window !== 'undefined') {
-      this.storage = window.localStorage;
-    }
+export class LocalStorageDatabase implements DatabaseInterface {
+  private getStorage(): Storage | typeof memoryStorage {
+    return isServer ? memoryStorage : window.localStorage;
   }
 
   private getCollection<T>(key: string): T[] {
-    if (!this.storage) {
+    try {
+      const storage = this.getStorage();
+      const data = storage[key];
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.warn(`Fehler beim Laden von ${key}:`, error);
       return [];
     }
-    const data = this.storage.getItem(key);
-    return data ? JSON.parse(data) : [];
   }
 
   private setCollection<T>(key: string, data: T[]): void {
-    if (!this.storage) {
-      console.warn('LocalStorage ist nicht verfügbar - Daten werden nicht gespeichert');
-      return;
+    try {
+      const storage = this.getStorage();
+      storage[key] = JSON.stringify(data);
+    } catch (error) {
+      console.warn(`Fehler beim Speichern von ${key}:`, error);
     }
-    this.storage.setItem(key, JSON.stringify(data));
   }
 
   private getItem<T>(key: string): T | null {
-    if (!this.storage) {
+    try {
+      const storage = this.getStorage();
+      const data = storage[key];
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.warn(`Fehler beim Laden von ${key}:`, error);
       return null;
     }
-    const data = this.storage.getItem(key);
-    return data ? JSON.parse(data) : null;
   }
 
   private setItem<T>(key: string, data: T): void {
-    if (!this.storage) {
-      console.warn('LocalStorage ist nicht verfügbar - Daten werden nicht gespeichert');
-      return;
+    try {
+      const storage = this.getStorage();
+      storage[key] = JSON.stringify(data);
+    } catch (error) {
+      console.warn(`Fehler beim Speichern von ${key}:`, error);
     }
-    this.storage.setItem(key, JSON.stringify(data));
   }
 
   // Kontakte

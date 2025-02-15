@@ -9,13 +9,6 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
 
   try {
-    if (typeof window === 'undefined') {
-      return NextResponse.json(
-        { error: 'Diese Aktion ist nur im Browser verfügbar' },
-        { status: 400 }
-      );
-    }
-
     const db = getDatabase();
     if (!db) {
       return NextResponse.json(
@@ -77,13 +70,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    if (typeof window === 'undefined') {
-      return NextResponse.json(
-        { error: 'Diese Aktion ist nur im Browser verfügbar' },
-        { status: 400 }
-      );
-    }
-
     const db = getDatabase();
     if (!db) {
       return NextResponse.json(
