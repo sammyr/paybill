@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
                 <!-- Absender und QR-Code -->
                 <div class="header-flex">
                   <div class="header-address">
-                    ${settings.companyName} - ${settings.street} - ${settings.zip} ${settings.city}
+                    ${settings.companyName} - ${settings.street} - ${settings.zipCode} ${settings.city}
                   </div>
                   <img 
                     class="qr-code"
@@ -286,10 +286,10 @@ export async function POST(req: NextRequest) {
                     <td>Ihre Kundennummer</td>
                     <td>${invoice.customerNumber}</td>
                   </tr>` : ''}
-                  ${settings.owner ? `
+                  ${settings.companyOwner ? `
                   <tr>
                     <td>Ihr Ansprechpartner</td>
-                    <td>${settings.owner}</td>
+                    <td>${settings.companyOwner}</td>
                   </tr>` : ''}
 
  
@@ -361,7 +361,7 @@ export async function POST(req: NextRequest) {
                 <div>
                   ${settings.companyName ? `<p>${settings.companyName}</p>` : ''}
                   ${settings.street ? `<p>${settings.street}</p>` : ''}
-                  ${settings.zip || settings.city ? `<p>${settings.zip || ''} ${settings.city || ''}</p>` : ''}
+                  ${settings.zipCode || settings.city ? `<p>${settings.zipCode || ''} ${settings.city || ''}</p>` : ''}
                   ${settings.country ? `<p>${settings.country}</p>` : ''}
                 </div>
                 <div>
@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
                 <div>
                   ${settings.taxId ? `<p>USt-ID: ${settings.taxId}</p>` : ''}
                   ${settings.vatId ? `<p>Steuer-Nr.: ${settings.vatId}</p>` : ''}
-                  ${settings.owner ? `<p>Inhaber/-in: ${settings.owner}</p>` : ''}
+                  ${settings.companyOwner ? `<p>Inhaber/-in: ${settings.companyOwner}</p>` : ''}
                 </div>
                 <div>
                   ${settings.bankDetails?.bankName ? `<p>Bank: ${settings.bankDetails.bankName}</p>` : ''}

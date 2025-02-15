@@ -74,7 +74,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                 <div className="flex justify-between items-end">
                   {/* Absenderzeile */}
                   <div className="text-xs">
-                    {settings.companyName} - {settings.street} - {settings.zip} {settings.city}
+                    {settings.companyName} - {settings.street} - {settings.zipCode} {settings.city}
                   </div>
                   
                   {/* QR Code */}
@@ -128,10 +128,10 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                           <td className="text-right">{invoice.customerNumber}</td>
                         </tr>
                       )}
-                      {settings.owner && (
+                      {settings.companyOwner && (
                         <tr>
                           <td className="py-1">Ihr Ansprechpartner</td>
-                          <td className="text-right">{settings.owner}</td>
+                          <td className="text-right">{settings.companyOwner}</td>
                         </tr>
                       )}
                     </tbody>
@@ -239,7 +239,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                   <div>
                     {settings.companyName}<br />
                     {settings.street}<br />
-                    {settings.zip} {settings.city}<br />
+                    {settings.zipCode} {settings.city}<br />
                     {settings.country}
                   </div>
                   <div>
@@ -250,7 +250,7 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                   <div>
                     USt.-ID: {settings.vatId}<br />
                     Steuer-Nr.: {settings.taxId}<br />
-                    Inhaber/-in: {settings.owner}
+                    Inhaber/-in: {settings.companyOwner}
                   </div>
                   <div>
                     {settings.bankDetails?.bankName && <p>Bank: {settings.bankDetails.bankName}</p>}
