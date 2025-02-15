@@ -37,7 +37,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@next/swc-win32-x64-msvc": "^14.1.0",
     "@shadcn/ui": "^0.0.4",
     "@types/node": "^20",
     "@types/react": "18.2.0",
