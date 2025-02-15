@@ -1,5 +1,6 @@
 {
   "type": "docker",
-  "buildPack": "docker-compose",
-  "deploymentType": "docker-compose"
+  "buildPack": "dockerfile",
+  "deploymentType": "dockerfile",
+  "dockerfilePath": "./Dockerfile"
 }
