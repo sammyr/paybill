@@ -1,0 +1,4 @@
+{
+  "buildPack": "docker",
+  "buildCommand": "docker build -t paybill ."
+}
