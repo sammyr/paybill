@@ -45,6 +45,7 @@ export class LocalStorageDatabase implements DatabaseInterface {
       storage[key] = JSON.stringify(data);
     } catch (error) {
       console.warn(`Fehler beim Speichern von ${key}:`, error);
+      throw new Error(`Fehler beim Speichern von ${key}: ${error.message}`);
     }
   }
 
@@ -52,7 +53,10 @@ export class LocalStorageDatabase implements DatabaseInterface {
     try {
       const storage = this.getStorage();
       const data = storage[key];
-      return data ? JSON.parse(data) : defaultValue;
+      if (!data) return defaultValue;
+      
+      const parsed = JSON.parse(data);
+      return parsed || defaultValue;
     } catch (error) {
       console.warn(`Fehler beim Laden von ${key}:`, error);
       return defaultValue;
@@ -60,11 +64,29 @@ export class LocalStorageDatabase implements DatabaseInterface {
   }
 
   private setItem<T>(key: string, data: T): void {
+    if (!data) {
+      console.warn(`Ungültige Daten für ${key}`);
+      throw new Error('Ungültige Daten');
+    }
+
     try {
       const storage = this.getStorage();
-      storage[key] = JSON.stringify(data);
+      const jsonData = JSON.stringify(data);
+      storage[key] = jsonData;
+
+      // Validiere, dass die Daten korrekt gespeichert wurden
+      const savedData = storage[key];
+      if (!savedData) {
+        throw new Error('Daten konnten nicht gespeichert werden');
+      }
+
+      const parsedData = JSON.parse(savedData);
+      if (!parsedData) {
+        throw new Error('Gespeicherte Daten sind ungültig');
+      }
     } catch (error) {
-      console.warn(`Fehler beim Speichern von ${key}:`, error);
+      console.error(`Fehler beim Speichern von ${key}:`, error);
+      throw new Error(`Die Daten konnten nicht gespeichert werden: ${error.message}`);
     }
   }
 
@@ -213,14 +235,33 @@ export class LocalStorageDatabase implements DatabaseInterface {
   }
 
   async updateSettings(settings: Partial<Settings>): Promise<Settings> {
-    const currentSettings = await this.getSettings();
-    const updatedSettings: Settings = {
-      ...currentSettings,
-      ...settings,
-      updatedAt: new Date()
-    };
-    this.setItem('settings', updatedSettings);
-    return updatedSettings;
+    try {
+      const currentSettings = await this.getSettings();
+      const updatedSettings: Settings = {
+        ...currentSettings,
+        ...settings,
+        updatedAt: new Date()
+      };
+
+      // Validiere die Einstellungen vor dem Speichern
+      if (!updatedSettings.id) {
+        updatedSettings.id = '1';
+      }
+
+      // Versuche zu speichern
+      this.setItem('settings', updatedSettings);
+
+      // Prüfe, ob die Einstellungen korrekt gespeichert wurden
+      const savedSettings = this.getItem<Settings>('settings');
+      if (!savedSettings) {
+        throw new Error('Einstellungen konnten nicht validiert werden');
+      }
+
+      return updatedSettings;
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Einstellungen:', error);
+      throw new Error(`Die Einstellungen konnten nicht gespeichert werden: ${error.message}`);
+    }
   }
 
   // Steuern

@@ -52,8 +52,16 @@ export async function GET(request: Request) {
         return NextResponse.json(offer);
       }
       case 'getSettings': {
-        const settings = await db.getSettings();
-        return NextResponse.json(settings);
+        try {
+          const settings = await db.getSettings();
+          return NextResponse.json(settings);
+        } catch (error) {
+          console.error('Fehler beim Laden der Einstellungen:', error);
+          return NextResponse.json(
+            { error: 'Einstellungen konnten nicht geladen werden' },
+            { status: 500 }
+          );
+        }
       }
       case 'listTaxes': {
         const taxes = await db.listTaxes();
@@ -144,8 +152,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true });
       }
       case 'updateSettings': {
-        const settings = await db.updateSettings(body);
-        return NextResponse.json(settings);
+        try {
+          const settings = await db.updateSettings(body);
+          return NextResponse.json(settings);
+        } catch (error) {
+          console.error('Fehler beim Speichern der Einstellungen:', error);
+          return NextResponse.json(
+            { error: 'Die Einstellungen konnten nicht gespeichert werden: ' + error.message },
+            { status: 500 }
+          );
+        }
       }
       case 'createTax': {
         const tax = await db.createTax(body);
