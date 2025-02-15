@@ -19,116 +19,73 @@ import { useToast } from "@/components/ui/use-toast";
 export default function EinstellungenPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const response = await fetch('/api/db?action=getSettings');
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Loaded data from API:', data);
-          
-          // Initialisiere bankDetails mit Standardwerten
-          const bankDetails = {
-            accountHolder: '',
-            bankName: '',
-            iban: '',
-            bic: '',
-            swift: ''
-          };
-
-          // Wenn bankDetails in den Daten vorhanden ist, übernehme die Werte
-          if (data.bankDetails) {
-            Object.assign(bankDetails, data.bankDetails);
-          }
-          // Übernehme auch die einzelnen Bankfelder, falls vorhanden
-          else {
-            if (data.accountHolder) bankDetails.accountHolder = data.accountHolder;
-            if (data.bankName) bankDetails.bankName = data.bankName;
-            if (data.bankIban) bankDetails.iban = data.bankIban;
-            if (data.bankBic) bankDetails.bic = data.bankBic;
-            if (data.bankSwift) bankDetails.swift = data.bankSwift;
-          }
-
-          console.log('Initialized bankDetails:', bankDetails);
-
-          // Aktualisiere die Einstellungen mit den korrekten Bankdaten
-          setSettings({
-            ...data,
-            bankDetails
-          });
-        }
-      } catch (error) {
-        console.error('Error loading settings:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadSettings();
   }, []);
 
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/db?action=getSettings');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Fehler beim Laden der Einstellungen');
+      }
+      const data = await response.json();
+      setSettings(data);
+    } catch (error) {
+      console.error('Fehler beim Laden der Einstellungen:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Fehler',
+        description: error.message || 'Die Einstellungen konnten nicht geladen werden'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!settings) return;
-    
+
     try {
-      console.log('Saving settings:', settings);
-      
-      // Stelle sicher, dass bankDetails vollständig ist
-      const bankDetails = settings.bankDetails || {
-        accountHolder: '',
-        bankName: '',
-        iban: '',
-        bic: '',
-        swift: ''
-      };
-      
-      const dataToSave = {
-        ...settings,
-        bankDetails
-      };
-      
-      console.log('Data to save:', dataToSave);
-      
-      const response = await fetch('/api/db', {
+      setSaving(true);
+      const response = await fetch('/api/db?action=updateSettings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          action: 'updateSettings',
-          data: dataToSave
-        })
+        body: JSON.stringify(settings),
       });
       
       if (!response.ok) {
-        throw new Error('Failed to save settings');
+        const error = await response.json();
+        throw new Error(error.error || 'Die Einstellungen konnten nicht gespeichert werden');
       }
       
       const updatedSettings = await response.json();
-      console.log('Settings saved:', updatedSettings);
-      
-      // Aktualisiere die lokalen Einstellungen
       setSettings(updatedSettings);
-      
       toast({
-        title: "Einstellungen gespeichert",
-        description: "Ihre Einstellungen wurden erfolgreich gespeichert.",
-        duration: 3000
+        title: 'Erfolg',
+        description: 'Die Einstellungen wurden erfolgreich gespeichert'
       });
     } catch (error) {
-      console.error('Error saving settings:', error);
+      console.error('Fehler beim Speichern der Einstellungen:', error);
       toast({
-        title: "Fehler beim Speichern",
-        description: "Die Einstellungen konnten nicht gespeichert werden.",
-        variant: "destructive",
-        duration: 3000
+        variant: 'destructive',
+        title: 'Fehler',
+        description: error.message || 'Die Einstellungen konnten nicht gespeichert werden'
       });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: keyof Settings, value: string) => {
+    if (!settings) return;
     setSettings({ ...settings, [field]: value });
   };
 
@@ -137,14 +94,16 @@ export default function EinstellungenPage() {
   }
 
   if (!settings) {
-    return <div className="p-8">Fehler beim Laden der Einstellungen</div>;
+    return <div className="p-8">Keine Einstellungen gefunden</div>;
   }
 
   return (
     <div className="container mx-auto p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Einstellungen</h1>
-        <Button onClick={handleSave}>Speichern</Button>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Speichere...' : 'Speichern'}
+        </Button>
       </div>
 
       <div className="space-y-6">
@@ -162,7 +121,7 @@ export default function EinstellungenPage() {
             <Input
               id="companyName"
               value={settings.companyName || ''}
-              onChange={(e) => setSettings({ ...settings, companyName: e.target.value })}
+              onChange={(e) => handleChange('companyName', e.target.value)}
             />
           </div>
 
@@ -171,7 +130,7 @@ export default function EinstellungenPage() {
             <Input
               id="taxId"
               value={settings.taxId || ''}
-              onChange={(e) => setSettings({ ...settings, taxId: e.target.value })}
+              onChange={(e) => handleChange('taxId', e.target.value)}
             />
           </div>
 
@@ -180,7 +139,7 @@ export default function EinstellungenPage() {
             <Input
               id="vatId"
               value={settings.vatId || ''}
-              onChange={(e) => setSettings({ ...settings, vatId: e.target.value })}
+              onChange={(e) => handleChange('vatId', e.target.value)}
               placeholder="DE123456789"
             />
           </div>
@@ -190,7 +149,7 @@ export default function EinstellungenPage() {
             <Input
               id="street"
               value={settings.street || ''}
-              onChange={(e) => setSettings({ ...settings, street: e.target.value })}
+              onChange={(e) => handleChange('street', e.target.value)}
             />
           </div>
 
@@ -200,10 +159,7 @@ export default function EinstellungenPage() {
               <Input
                 id="zipCode"
                 value={settings.zipCode || ''}
-                onChange={(e) => setSettings({
-                  ...settings,
-                  zipCode: e.target.value
-                })}
+                onChange={(e) => handleChange('zipCode', e.target.value)}
               />
             </div>
 
@@ -212,7 +168,7 @@ export default function EinstellungenPage() {
               <Input
                 id="city"
                 value={settings.city || ''}
-                onChange={(e) => setSettings({ ...settings, city: e.target.value })}
+                onChange={(e) => handleChange('city', e.target.value)}
               />
             </div>
           </div>
@@ -221,7 +177,7 @@ export default function EinstellungenPage() {
             <Label htmlFor="country">Land</Label>
             <Select
               value={settings.country}
-              onValueChange={(value) => setSettings({ ...settings, country: value })}
+              onValueChange={(value) => handleChange('country', value)}
             >
               <SelectTrigger id="country">
                 <SelectValue placeholder="Wähle ein Land" />
@@ -239,7 +195,7 @@ export default function EinstellungenPage() {
             <Input
               id="address"
               value={settings.address || ''}
-              onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+              onChange={(e) => handleChange('address', e.target.value)}
             />
           </div>
 
@@ -248,7 +204,7 @@ export default function EinstellungenPage() {
             <Input
               id="inhaber"
               value={settings.companyOwner || ''}
-              onChange={(e) => setSettings({ ...settings, companyOwner: e.target.value })}
+              onChange={(e) => handleChange('companyOwner', e.target.value)}
               placeholder="Max Mustermann"
             />
           </div>
@@ -257,7 +213,7 @@ export default function EinstellungenPage() {
             <Label htmlFor="rechtsform">Rechtsform</Label>
             <Select
               value={settings.legalForm || 'Einzelunternehmer'}
-              onValueChange={(value) => setSettings({ ...settings, legalForm: value })}
+              onValueChange={(value) => handleChange('legalForm', value)}
             >
               <SelectTrigger id="rechtsform">
                 <SelectValue placeholder="Rechtsform auswählen" />
@@ -284,7 +240,7 @@ export default function EinstellungenPage() {
                 type="tel"
                 id="phone"
                 value={settings.phone || ''}
-                onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                onChange={(e) => handleChange('phone', e.target.value)}
               />
             </div>
 
@@ -294,7 +250,7 @@ export default function EinstellungenPage() {
                 type="email"
                 id="email"
                 value={settings.email || ''}
-                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
+                onChange={(e) => handleChange('email', e.target.value)}
               />
             </div>
 
@@ -305,7 +261,7 @@ export default function EinstellungenPage() {
                 id="website"
                 placeholder="https://"
                 value={settings.website || ''}
-                onChange={(e) => setSettings({ ...settings, website: e.target.value })}
+                onChange={(e) => handleChange('website', e.target.value)}
               />
             </div>
           </div>
@@ -318,7 +274,7 @@ export default function EinstellungenPage() {
             <Label htmlFor="paymentTermDays">Zahlungsziel (Tage)</Label>
             <Select
               value={settings.paymentTermDays?.toString() || '14'}
-              onValueChange={(value) => setSettings({ ...settings, paymentTermDays: parseInt(value) })}
+              onValueChange={(value) => handleChange('paymentTermDays', value)}
             >
               <SelectTrigger id="paymentTermDays">
                 <SelectValue placeholder="Zahlungsziel auswählen" />
@@ -337,7 +293,7 @@ export default function EinstellungenPage() {
             <Label htmlFor="defaultTax">Standard-Steuersatz</Label>
             <Select
               value={settings.defaultTax?.toString() || '19'}
-              onValueChange={(value) => setSettings({ ...settings, defaultTax: parseInt(value) })}
+              onValueChange={(value) => handleChange('defaultTax', value)}
             >
               <SelectTrigger id="defaultTax">
                 <SelectValue placeholder="Steuersatz auswählen" />
@@ -364,14 +320,11 @@ export default function EinstellungenPage() {
                   ...(settings.bankDetails || {}),
                   bankName: e.target.value
                 };
-                console.log('Updating bankName:', e.target.value);
-                console.log('New bankDetails:', newBankDetails);
                 setSettings(prev => {
                   const updated = {
                     ...prev,
                     bankDetails: newBankDetails
                   };
-                  console.log('Updated settings:', updated);
                   return updated;
                 });
               }}
@@ -389,14 +342,11 @@ export default function EinstellungenPage() {
                   ...(settings.bankDetails || {}),
                   iban: e.target.value.toUpperCase().replace(/\s/g, '')
                 };
-                console.log('Updating IBAN:', e.target.value);
-                console.log('New bankDetails:', newBankDetails);
                 setSettings(prev => {
                   const updated = {
                     ...prev,
                     bankDetails: newBankDetails
                   };
-                  console.log('Updated settings:', updated);
                   return updated;
                 });
               }}
@@ -414,14 +364,11 @@ export default function EinstellungenPage() {
                   ...(settings.bankDetails || {}),
                   bic: e.target.value.toUpperCase().replace(/\s/g, '')
                 };
-                console.log('Updating BIC:', e.target.value);
-                console.log('New bankDetails:', newBankDetails);
                 setSettings(prev => {
                   const updated = {
                     ...prev,
                     bankDetails: newBankDetails
                   };
-                  console.log('Updated settings:', updated);
                   return updated;
                 });
               }}
@@ -439,14 +386,11 @@ export default function EinstellungenPage() {
                   ...(settings.bankDetails || {}),
                   accountHolder: e.target.value
                 };
-                console.log('Updating accountHolder:', e.target.value);
-                console.log('New bankDetails:', newBankDetails);
                 setSettings(prev => {
                   const updated = {
                     ...prev,
                     bankDetails: newBankDetails
                   };
-                  console.log('Updated settings:', updated);
                   return updated;
                 });
               }}
@@ -455,8 +399,8 @@ export default function EinstellungenPage() {
         </div>
 
         <div className="flex justify-end mt-8 border-t pt-6">
-          <Button onClick={handleSave} className="min-w-[120px]">
-            Speichern
+          <Button onClick={handleSave} disabled={saving} className="min-w-[120px]">
+            {saving ? 'Speichere...' : 'Speichern'}
           </Button>
         </div>
       </div>
