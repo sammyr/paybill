@@ -80,19 +80,23 @@ function InvoicePreviewContent() {
           return;
         }
 
-        // Versuche zuerst die Einstellungen aus dem localStorage zu laden
+        const db = getDatabase();
+
+        // Lade die Einstellungen direkt aus der Datenbank
         let settingsData = null;
         try {
-          const cachedSettings = localStorage.getItem('app_settings');
-          if (cachedSettings) {
-            settingsData = JSON.parse(cachedSettings);
-            console.log('Einstellungen aus localStorage geladen:', settingsData);
-          }
-        } catch (e) {
-          console.warn('Fehler beim Laden der Einstellungen aus localStorage:', e);
+          settingsData = await db.getSettings();
+          console.log('Einstellungen aus der Datenbank geladen:', settingsData);
+          setSettings(settingsData);
+        } catch (error) {
+          console.error('Fehler beim Laden der Einstellungen:', error);
+          toast({
+            title: "Warnung",
+            description: "Die Einstellungen konnten nicht geladen werden.",
+            variant: "destructive"
+          });
         }
 
-        const db = getDatabase();
         const invoices = await db.listInvoices();
         
         // Bereinige die Suchnummer
@@ -144,22 +148,6 @@ function InvoicePreviewContent() {
 
           setInvoice(invoice);
         }
-
-        // Wenn keine Einstellungen im localStorage, lade sie aus der Datenbank
-        if (!settingsData) {
-          const loadedSettings = await db.getSettings();
-          settingsData = loadedSettings;
-          
-          // Speichere die Einstellungen im localStorage für zukünftige Verwendung
-          try {
-            localStorage.setItem('app_settings', JSON.stringify(loadedSettings));
-            console.log('Einstellungen im localStorage gespeichert');
-          } catch (e) {
-            console.warn('Fehler beim Speichern der Einstellungen im localStorage:', e);
-          }
-        }
-
-        setSettings(settingsData);
       } catch (error) {
         console.error('Fehler beim Laden der Rechnungsdaten:', error);
         toast({

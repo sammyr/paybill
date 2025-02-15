@@ -28,6 +28,13 @@ export class LocalStorageDatabase implements DatabaseInterface {
     return isServer ? memoryStorage : window.localStorage;
   }
 
+  private getLocalStorage() {
+    if (typeof window !== 'undefined') {
+      return window.localStorage;
+    }
+    return null;
+  }
+
   private getCollection<T>(key: string): T[] {
     try {
       const storage = this.getStorage();
@@ -230,37 +237,44 @@ export class LocalStorageDatabase implements DatabaseInterface {
 
   // Einstellungen
   async getSettings(): Promise<Settings> {
-    const settings = this.getItem<Settings>('settings', defaultSettings);
-    return settings || defaultSettings;
+    try {
+      const settings = this.getCollection<Settings>('settings')[0];
+      if (!settings) {
+        // Wenn keine Einstellungen gefunden wurden, verwende die Standardeinstellungen
+        const defaultSettingsCopy = { ...defaultSettings };
+        this.setCollection('settings', [defaultSettingsCopy]);
+        return defaultSettingsCopy;
+      }
+      return settings;
+    } catch (error) {
+      console.error('Fehler beim Laden der Einstellungen:', error);
+      return { ...defaultSettings };
+    }
   }
 
   async updateSettings(settings: Partial<Settings>): Promise<Settings> {
     try {
+      // Hole aktuelle Einstellungen
       const currentSettings = await this.getSettings();
+      
+      // Aktualisiere die Einstellungen
       const updatedSettings: Settings = {
         ...currentSettings,
         ...settings,
         updatedAt: new Date()
       };
 
-      // Validiere die Einstellungen vor dem Speichern
+      // Validiere die Daten vor dem Speichern
       if (!updatedSettings.id) {
         updatedSettings.id = '1';
       }
 
-      // Versuche zu speichern
-      this.setItem('settings', updatedSettings);
-
-      // Prüfe, ob die Einstellungen korrekt gespeichert wurden
-      const savedSettings = this.getItem<Settings>('settings');
-      if (!savedSettings) {
-        throw new Error('Einstellungen konnten nicht validiert werden');
-      }
-
+      // Speichere die aktualisierten Einstellungen
+      this.setCollection('settings', [updatedSettings]);
       return updatedSettings;
     } catch (error) {
-      console.error('Fehler beim Aktualisieren der Einstellungen:', error);
-      throw new Error(`Die Einstellungen konnten nicht gespeichert werden: ${error.message}`);
+      console.error('Fehler beim Speichern der Einstellungen:', error);
+      throw error;
     }
   }
 

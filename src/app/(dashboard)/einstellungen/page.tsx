@@ -29,12 +29,8 @@ export default function EinstellungenPage() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/db?action=getSettings');
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Fehler beim Laden der Einstellungen');
-      }
-      const data = await response.json();
+      const db = getDatabase();
+      const data = await db.getSettings();
       setSettings(data);
     } catch (error) {
       console.error('Fehler beim Laden der Einstellungen:', error);
@@ -53,21 +49,12 @@ export default function EinstellungenPage() {
 
     try {
       setSaving(true);
-      const response = await fetch('/api/db?action=updateSettings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings),
-      });
+      const db = getDatabase();
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Die Einstellungen konnten nicht gespeichert werden');
-      }
-      
-      const updatedSettings = await response.json();
+      // Speichere direkt in der Datenbank
+      const updatedSettings = await db.updateSettings(settings);
       setSettings(updatedSettings);
+      
       toast({
         title: 'Erfolg',
         description: 'Die Einstellungen wurden erfolgreich gespeichert'
