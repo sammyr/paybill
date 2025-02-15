@@ -1,5 +1,5 @@
 [setup]
-apt_pkgs = ["chromium"]
+apt_pkgs = ["chromium-browser"]
 
 [build]
 cmd = "npm install && npm run build"
@@ -8,4 +8,4 @@ cmd = "npm install && npm run build"
 cmd = "npm run start"
 
 [environment]
-PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
+PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium-browser"
