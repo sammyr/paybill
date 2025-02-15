@@ -22,16 +22,19 @@ export async function POST(req: NextRequest) {
     // Debug-Ausgabe
     console.log('Berechnete Totals:', totals);
 
-    // Starte Puppeteer
+    // Starte Puppeteer mit Debug-Ausgabe
+    console.log('Starte Puppeteer mit Pfad:', process.env.PUPPETEER_EXECUTABLE_PATH);
     const browser = await puppeteer.launch({
       headless: 'new',
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--disable-software-rasterizer'
+        '--disable-software-rasterizer',
+        '--no-zygote',
+        '--single-process'
       ]
     });
     const page = await browser.newPage();
