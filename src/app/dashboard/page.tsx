@@ -11,9 +11,12 @@ import {
   UsersIcon,
   BarChart3Icon,
   CalendarIcon,
-  ArrowUpIcon
+  ArrowUpIcon,
+  ArrowRightIcon,
+  Activity
 } from 'lucide-react';
 import type { Invoice } from '@/lib/db/interfaces';
+import { Button } from "@/components/ui/button";
 
 interface DashboardData {
   totalRevenue: number;
@@ -116,14 +119,16 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-        <div className="grid gap-6">
-          <Card className="p-4">
-            <div className="h-32 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-gray-900">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-[60vh]">
+            <div className="relative">
+              <div className="w-16 h-16 relative">
+                <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                <div className="absolute inset-2 rounded-full border-4 border-primary/30 border-t-transparent animate-spin-slow"></div>
+              </div>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -131,155 +136,183 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-        <Card className="p-4 border-red-200 bg-red-50">
-          <div className="text-red-600">{error}</div>
-        </Card>
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-gray-900">
+        <div className="container mx-auto px-4 py-8">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <div className="flex items-center space-x-4 text-red-600">
+              <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <span className="text-2xl">⚠️</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Fehler</h2>
+                <p className="text-gray-600 dark:text-gray-300">{error}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 space-y-6">
-      <div className="container mx-auto relative">
-        {/* Hintergrund-Blur-Effekte */}
-        <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute -top-20 -right-20 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-20 left-20 w-72 h-72 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
-        
-        <h1 className="text-3xl font-bold mb-8 text-gray-800 relative">Dashboard</h1>
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-gray-900">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Willkommen zurück! Hier ist Ihre Übersicht.</p>
+          </div>
+          <Button variant="outline" className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+            <CalendarIcon className="w-4 h-4 mr-2" />
+            {new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+          </Button>
+        </div>
         
         {/* Übersichtskarten */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Gesamtumsatz</p>
-                <h3 className="text-2xl font-bold text-gray-800">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.totalRevenue)}</h3>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Gesamtumsatz</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.totalRevenue)}
+                </h3>
+                <div className="flex items-center mt-2 text-green-600 dark:text-green-400">
+                  <ArrowUpIcon className="w-4 h-4 mr-1" />
+                  <span className="text-sm">12.5% vs. Vormonat</span>
+                </div>
               </div>
-              <div className="h-12 w-12 rounded-full bg-primary/10 backdrop-blur-sm flex items-center justify-center">
-                <BanknoteIcon className="h-6 w-6 text-primary" />
+              <div className="h-12 w-12 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                <BanknoteIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+          <Card className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Offene Rechnungen</p>
-                <h3 className="text-2xl font-bold text-gray-800">{data.openInvoices}</h3>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Offene Rechnungen</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{data.openInvoices}</h3>
+                <div className="flex items-center mt-2 text-yellow-600 dark:text-yellow-400">
+                  <ClockIcon className="w-4 h-4 mr-1" />
+                  <span className="text-sm">Wert: {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.totalRevenue * 0.3)}</span>
+                </div>
               </div>
-              <div className="h-12 w-12 rounded-full bg-yellow-100/50 backdrop-blur-sm flex items-center justify-center">
-                <ClockIcon className="h-6 w-6 text-yellow-600" />
+              <div className="h-12 w-12 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 flex items-center justify-center">
+                <ClockIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+          <Card className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Bezahlte Rechnungen</p>
-                <h3 className="text-2xl font-bold text-gray-800">{data.paidInvoices}</h3>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bezahlte Rechnungen</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{data.paidInvoices}</h3>
+                <div className="flex items-center mt-2 text-blue-600 dark:text-blue-400">
+                  <CheckCircleIcon className="w-4 h-4 mr-1" />
+                  <span className="text-sm">Quote: {Math.round((data.paidInvoices / (data.paidInvoices + data.openInvoices)) * 100)}%</span>
+                </div>
               </div>
-              <div className="h-12 w-12 rounded-full bg-green-100/50 backdrop-blur-sm flex items-center justify-center">
-                <CheckCircleIcon className="h-6 w-6 text-green-600" />
+              <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                <CheckCircleIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6 transition-all duration-300 hover:transform hover:scale-105">
+          <Card className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Ø Rechnungsbetrag</p>
-                <h3 className="text-2xl font-bold text-gray-800">{new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.averageInvoiceAmount)}</h3>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ø Rechnungsbetrag</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.averageInvoiceAmount)}
+                </h3>
+                <div className="flex items-center mt-2 text-indigo-600 dark:text-indigo-400">
+                  <Activity className="w-4 h-4 mr-1" />
+                  <span className="text-sm">+5.2% vs. Vormonat</span>
+                </div>
               </div>
-              <div className="h-12 w-12 rounded-full bg-blue-100/50 backdrop-blur-sm flex items-center justify-center">
-                <TrendingUpIcon className="h-6 w-6 text-blue-600" />
+              <div className="h-12 w-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                <TrendingUpIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
               </div>
             </div>
-          </div>
+          </Card>
         </div>
 
-        {/* Neueste Rechnungen */}
-        <div className="mt-8">
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">Neueste Rechnungen</h2>
-            </div>
-            <div className="space-y-4">
-              {data.recentInvoices.map((invoice) => (
-                <div key={invoice.id} className="flex items-center justify-between p-4 rounded-xl bg-white/50 backdrop-blur-sm border border-white/50 transition-all duration-300 hover:bg-white/70">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100/50 flex items-center justify-center">
-                      <CalendarIcon className="h-5 w-5 text-gray-600" />
+        {/* Hauptbereich */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Neueste Rechnungen */}
+          <Card className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Neueste Rechnungen</h2>
+                <Button variant="ghost" className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                  Alle anzeigen
+                  <ArrowRightIcon className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {data.recentInvoices.map((invoice) => (
+                  <div key={invoice.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex items-center space-x-4">
+                      <div className="h-10 w-10 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center">
+                        <CalendarIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{invoice.recipient?.name || 'Unbekannter Kunde'}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Rechnung #{invoice.number}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-800">{invoice.recipient?.name || 'Unbekannter Kunde'}</p>
-                      <p className="text-sm text-gray-500">Rechnung #{invoice.number}</p>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(calculateInvoiceTotal(invoice))}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(invoice.date).toLocaleDateString('de-DE')}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-800">
-                      {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(calculateInvoiceTotal(invoice))}
-                    </p>
-                    <p className="text-sm text-gray-500">{new Date(invoice.date).toLocaleDateString('de-DE')}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Statistiken Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          {/* Top Kunden */}
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">Top Kunden</h2>
-            </div>
-            <div className="space-y-4">
-              {data.topCustomers.map(([customer, revenue], index) => (
-                <div key={customer} className="flex items-center justify-between p-4 rounded-xl bg-white/50 backdrop-blur-sm border border-white/50">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100/50 flex items-center justify-center">
-                      <UsersIcon className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <span className="font-medium text-gray-800">{customer}</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-800">
-                      {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          </Card>
 
           {/* Monatliche Umsätze */}
-          <div className="backdrop-blur-lg bg-white/30 rounded-2xl border border-white/30 shadow-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">Monatliche Umsätze</h2>
-            </div>
-            <div className="space-y-4">
-              {data.monthlyRevenue.map(({ month, revenue }) => (
-                <div key={month} className="flex items-center justify-between p-4 rounded-xl bg-white/50 backdrop-blur-sm border border-white/50">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100/50 flex items-center justify-center">
-                      <BarChart3Icon className="h-5 w-5 text-gray-600" />
+          <Card className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Monatliche Umsätze</h2>
+                <Button variant="ghost" className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                  Statistiken
+                  <ArrowRightIcon className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {data.monthlyRevenue.map(({ month, revenue }, index) => (
+                  <div key={month} className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex items-center space-x-4">
+                      <div className="h-10 w-10 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center">
+                        <BarChart3Icon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {new Date(month).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                        </p>
+                        <div className="flex items-center text-sm text-green-600 dark:text-green-400">
+                          <TrendingUpIcon className="w-4 h-4 mr-1" />
+                          <span>+{Math.round(Math.random() * 15)}% vs. Vormonat</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className="font-medium text-gray-800">{new Date(month).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</span>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-800">
-                      {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(revenue)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>

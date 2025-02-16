@@ -11,6 +11,19 @@ const systemRoutes = [
   '/sitemap.xml',
 ]
 
+// Öffentliche Routen, die ohne Authentifizierung zugänglich sind
+const publicRoutes = [
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/preise',
+  '/impressum',
+  '/kontakt',
+  '/datenschutz',
+  '/agb',
+]
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -19,7 +32,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Temporär: Erlaube alle Routen
+  // Erlaube öffentliche Routen ohne Auth
+  if (publicRoutes.some(route => pathname === route)) {
+    return NextResponse.next()
+  }
+
+  // Prüfe Auth-Token für geschützte Routen
+  const authToken = request.cookies.get('auth-token')
+  
+  if (!authToken && !pathname.startsWith('/login')) {
+    // Wenn kein Token vorhanden ist und wir nicht bereits auf der Login-Seite sind,
+    // leite zur Login-Seite weiter
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
   return NextResponse.next()
 }
 
