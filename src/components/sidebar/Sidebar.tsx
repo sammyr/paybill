@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -12,10 +12,12 @@ import {
   CircleDot,
   Menu,
   X,
-  FileCheck
+  FileCheck,
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/logo';
+import { useToast } from "@/components/ui/use-toast";
 
 interface SidebarProps {
   className?: string;
@@ -46,6 +48,8 @@ const bottomMenuItems: MenuItem[] = [];
 
 export function Sidebar({ className, items }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -61,6 +65,30 @@ export function Sidebar({ className, items }: SidebarProps) {
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Erfolgreich abgemeldet",
+          description: "Sie werden zur Login-Seite weitergeleitet...",
+        });
+        router.push('/login');
+      } else {
+        throw new Error('Abmeldung fehlgeschlagen');
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Fehler bei der Abmeldung",
+        description: "Bitte versuchen Sie es erneut",
+      });
+    }
+  };
 
   const NavLink = ({ item }: { item: MenuItem }) => {
     const isActive = pathname === item.path;
@@ -102,6 +130,13 @@ export function Sidebar({ className, items }: SidebarProps) {
         {bottomMenuItems.map((item) => (
           <NavLink key={item.path} item={item} />
         ))}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors w-full text-muted-foreground hover:bg-muted"
+        >
+          <LogOut size={20} />
+          <span>Abmelden</span>
+        </button>
       </nav>
     </>
   );

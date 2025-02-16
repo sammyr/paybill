@@ -99,6 +99,30 @@ body {
   animation-delay: 4s;
 }
 
+@keyframes dashboard {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(10px, 10px) scale(1.1);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-dashboard {
+  animation: dashboard 5s infinite;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1s;
+}
+
+.animation-delay-3000 {
+  animation-delay: 3s;
+}
+
 /* Glassmorphism-Effekte */
 .backdrop-blur-lg {
   backdrop-filter: blur(12px);

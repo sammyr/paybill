@@ -80,7 +80,7 @@ export default function Home() {
             Einfach, schnell und effizient.
           </p>
           <a
-            href="/dashboard"
+            href="/login"
             className="inline-flex items-center gap-2 bg-primary text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-primary/90 transition-colors"
           >
             Jetzt starten
