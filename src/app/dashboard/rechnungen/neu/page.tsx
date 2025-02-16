@@ -813,7 +813,7 @@ function InvoiceForm() {
       const savedInvoice = await saveDraft();
       
       // Navigiere zur Vorschau
-      router.push(`/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
+      router.push(`/dashboard/rechnungen/draft_temp/preview?number=${savedInvoice.number}`);
     } catch (error) {
       console.error('Fehler beim Anzeigen der Vorschau:', error);
       // Wenn die Rechnungsnummer bereits existiert, hole eine neue

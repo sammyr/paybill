@@ -30,6 +30,7 @@ export default function Navigation() {
             <a href="#features" className="hover:text-primary transition-colors">Features</a>
             <a href="#benefits" className="hover:text-primary transition-colors">Vorteile</a>
             <a href="/preise" className="hover:text-primary transition-colors">Preise</a>
+            <a href="/kontakt" className="hover:text-primary transition-colors">Kontakt</a>
             <a href="/dashboard" className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
               Login
             </a>
@@ -53,6 +54,7 @@ export default function Navigation() {
             <a href="#features" className="block hover:text-primary transition-colors">Features</a>
             <a href="#benefits" className="block hover:text-primary transition-colors">Vorteile</a>
             <a href="/preise" className="block hover:text-primary transition-colors">Preise</a>
+            <a href="/kontakt" className="block hover:text-primary transition-colors">Kontakt</a>
             <a href="/dashboard" className="block bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-center">
               Login
             </a>

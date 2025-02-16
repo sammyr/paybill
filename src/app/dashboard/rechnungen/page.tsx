@@ -280,14 +280,14 @@ export default function RechnungenPage() {
   const handleNewInvoice = () => {
     const highestNumber = getHighestInvoiceNumber(invoices);
     const nextNumber = getNextInvoiceNumber(highestNumber);
-    router.push(`/rechnungen/neu?number=${nextNumber}`);
+    router.push(`/dashboard/rechnungen/neu?number=${nextNumber}`);
   };
 
   // Handler für "Bearbeiten" Button
   const handleEditInvoice = async (invoice: Invoice) => {
     try {
       // Leite zur Rechnungserstellung weiter und übergebe die Rechnungsnummer
-      router.push(`/rechnungen/neu?number=${invoice.number}`);
+      router.push(`/dashboard/rechnungen/neu?id=${invoice.id}`);
     } catch (error) {
       console.error('Fehler beim Bearbeiten der Rechnung:', error);
       toast({
@@ -388,7 +388,7 @@ export default function RechnungenPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/rechnungen/${invoice.id}`)}
+                      onClick={() => router.push(`/dashboard/rechnungen/${invoice.id}`)}
                       title="Anzeigen"
                     >
                       <Eye className="w-4 h-4" />

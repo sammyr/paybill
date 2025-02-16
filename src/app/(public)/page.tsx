@@ -21,8 +21,6 @@ import { Euro } from 'lucide-react';
 import type { Invoice } from '@/lib/db/interfaces';
 import Image from 'next/image';
 import { ArrowRight, CheckCircle } from 'lucide-react';
-import Navigation from '@/components/navigation/Navigation';
-import Footer from '@/components/footer/Footer';
 
 interface DashboardData {
   totalRevenue: number;
@@ -62,8 +60,6 @@ const benefits = [
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Navigation />
-
       {/* Hero Section with Background Image */}
       <section className="relative min-h-[800px] flex items-center justify-center">
         <div className="absolute inset-0 z-0">
@@ -216,8 +212,6 @@ export default function Home() {
           </a>
         </div>
       </section>
-
-      <Footer />
     </div>
   );
 }

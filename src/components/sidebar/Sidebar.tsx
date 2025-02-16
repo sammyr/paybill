@@ -35,11 +35,11 @@ interface MenuItem {
 
 const mainMenuItems: MenuItem[] = [
   { name: 'Übersicht', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'Rechnungen', path: '/rechnungen', icon: FileText },
-  { name: 'Angebote', path: '/angebote', icon: FileCheck },
-  { name: 'Steuern', path: '/steuern', icon: Calculator },
-  { name: 'Kontakte', path: '/kontakte', icon: Users },
-  { name: 'Einstellungen', path: '/einstellungen', icon: Settings },
+  { name: 'Rechnungen', path: '/dashboard/rechnungen', icon: FileText },
+  { name: 'Angebote', path: '/dashboard/angebote', icon: FileCheck },
+  { name: 'Steuern', path: '/dashboard/steuern', icon: Calculator },
+  { name: 'Kontakte', path: '/dashboard/kontakte', icon: Users },
+  { name: 'Einstellungen', path: '/dashboard/einstellungen', icon: Settings },
 ];
 
 const bottomMenuItems: MenuItem[] = [];

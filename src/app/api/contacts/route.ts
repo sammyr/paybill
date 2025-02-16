@@ -3,8 +3,8 @@ import { getDatabase } from '@/lib/db';
 
 export async function GET() {
   try {
-    const db = getDatabase();
-    const contacts = await db.getAllContacts();
+    const db = await getDatabase();
+    const contacts = await db.listContacts();
     return NextResponse.json(contacts);
   } catch (error) {
     console.error('Error fetching contacts:', error);

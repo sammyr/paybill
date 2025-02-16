@@ -183,7 +183,7 @@ export default function AngebotePage() {
           <Button variant="destructive" onClick={handleReset}>
             Datenbank zurücksetzen
           </Button>
-          <Button onClick={() => router.push('/angebote/neu')}>
+          <Button onClick={() => router.push('/dashboard/angebote/neu')}>
             <Plus className="w-4 h-4 mr-2" />
             Neues Angebot
           </Button>
@@ -259,7 +259,7 @@ export default function AngebotePage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/angebote/${offer.id}`)}
+                      onClick={() => router.push(`/dashboard/angebote/${offer.id}`)}
                       title="Anzeigen"
                     >
                       <Eye className="w-4 h-4" />
@@ -267,7 +267,7 @@ export default function AngebotePage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/angebote/neu?id=${offer.id}`)}
+                      onClick={() => router.push(`/dashboard/angebote/neu?id=${offer.id}`)}
                       title="Bearbeiten"
                     >
                       <Pencil className="w-4 h-4" />

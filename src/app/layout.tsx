@@ -1,8 +1,7 @@
 import { Open_Sans } from 'next/font/google'
 import { Metadata } from 'next'
-
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import LayoutClient from './layout-client';
 
 const openSans = Open_Sans({
   subsets: ['latin'],
@@ -29,10 +28,9 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" type="image/x-icon" />
       </head>
       <body className={`${openSans.className} antialiased`}>
-        <main className="min-h-screen">
+        <LayoutClient>
           {children}
-        </main>
-        <Toaster position="top-center" />
+        </LayoutClient>
       </body>
     </html>
   );

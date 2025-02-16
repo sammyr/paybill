@@ -76,7 +76,7 @@ function InvoicePreviewContent() {
             description: "Keine Rechnungsnummer gefunden",
             variant: "destructive"
           });
-          router.push('/rechnungen');
+          router.push('/dashboard/rechnungen');
           return;
         }
 
@@ -121,7 +121,7 @@ function InvoicePreviewContent() {
               description: "Rechnung nicht gefunden",
               variant: "destructive"
             });
-            router.push('/rechnungen');
+            router.push('/dashboard/rechnungen');
             return;
           }
         } else {
@@ -164,7 +164,7 @@ function InvoicePreviewContent() {
   }, [searchParams, router, toast]);
 
   const handleBack = () => {
-    router.push(`/rechnungen/neu?number=${invoice?.number}`);
+    router.push(`/dashboard/rechnungen/neu?number=${invoice?.number}`);
   };
 
   const handlePrint = () => {
@@ -237,7 +237,7 @@ function InvoicePreviewContent() {
         description: "Rechnung wurde finalisiert",
       });
       
-      router.push('/rechnungen');
+      router.push('/dashboard/rechnungen');
     } catch (error) {
       console.error('Fehler beim Finalisieren:', error);
       toast({
