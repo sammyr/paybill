@@ -223,14 +223,11 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, settings, mode 
                 </table>
 
                 {/* Zahlungsbedingungen */}
-                <div className="mt-8 text-sm">
-                  <p>Bitte überweisen Sie den Gesamtbetrag innerhalb von 14 Tagen.</p>
+                <div className="mt-[50px] text-sm text-gray-600">
+                  <p>Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von {settings.paymentTermDays || 14} Tagen auf das unten angegebene Konto.</p>
                 </div>
 
-                {/* Fußtext */}
-                <div className="text-sm">
-                  <p>{invoice.notes}</p>
-                </div>
+
               </div>
 
               {/* Footer */}

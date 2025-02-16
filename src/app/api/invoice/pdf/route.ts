@@ -206,12 +206,14 @@ export async function POST(req: NextRequest) {
               .totals tr.total-line {
                 border-top: 1px solid #ddd;
               }
-              .totals tr.total-line td {
+              .totals tr.total-line {
                 padding-top: 8px;
                 font-weight: 600;
               }
               .payment-note {
-                margin: 2rem 0;
+                margin-top: 50px;
+                font-size: 0.875rem;
+                color: #4a5568;
               }
               .footer {
                 position: fixed;
@@ -352,8 +354,7 @@ export async function POST(req: NextRequest) {
 
               <!-- Zahlungshinweis -->
               <div class="payment-note">
-                Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen
-                auf das unten angegebene Konto.
+                Vielen Dank für Ihren Auftrag! Bitte überweisen Sie den Rechnungsbetrag innerhalb von ${settings.paymentTermDays || 14} Tagen auf das unten angegebene Konto.
               </div>
 
               <!-- Footer -->
