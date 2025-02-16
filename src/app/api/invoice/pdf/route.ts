@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
 import { calculateInvoiceTotals } from '@/lib/invoice-utils';
+import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { createZugferdXml } from '@/lib/zugferd';
 
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
     const { invoice, settings } = data;
 
-    // Debug-Ausgabe
     console.log('Empfangene Rechnungsdaten:', {
       invoice: {
         ...invoice,
@@ -16,10 +17,19 @@ export async function POST(req: NextRequest) {
       settings
     });
 
+    // Validiere Rechnungsdaten
+    if (!invoice?.recipient?.name) {
+      return new NextResponse(JSON.stringify({ 
+        error: 'Käufername ist ein Pflichtfeld und darf nicht leer sein' 
+      }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Berechne die korrekten Totals
     const totals = calculateInvoiceTotals(invoice);
 
-    // Debug-Ausgabe
     console.log('Berechnete Totals:', totals);
 
     // Bestimme den Chrome-Pfad basierend auf der Umgebung
@@ -52,13 +62,6 @@ export async function POST(req: NextRequest) {
     try {
       const page = await browser.newPage();
 
-      // Setze Viewport auf A4-Größe
-      await page.setViewport({
-        width: 794, // A4 Breite bei 96 DPI
-        height: 1123, // A4 Höhe bei 96 DPI
-        deviceScaleFactor: 2,
-      });
-
       // HTML für die Rechnung
       const html = `
         <!DOCTYPE html>
@@ -66,6 +69,22 @@ export async function POST(req: NextRequest) {
           <head>
             <meta charset="UTF-8">
             <style>
+              /* Font-Face Definitionen */
+              @font-face {
+                font-family: 'Roboto';
+                src: local('Roboto');
+                font-weight: normal;
+                font-style: normal;
+                font-display: swap;
+              }
+              @font-face {
+                font-family: 'Roboto';
+                src: local('Roboto Bold');
+                font-weight: bold;
+                font-style: normal;
+                font-display: swap;
+              }
+              
               @page {
                 size: A4;
                 margin: 0;
@@ -73,11 +92,11 @@ export async function POST(req: NextRequest) {
               body {
                 margin: 0;
                 padding: 15mm 20mm;
-                font-family: system-ui, -apple-system, sans-serif;
+                font-family: 'Roboto', system-ui, -apple-system, sans-serif;
                 font-size: 10pt;
-                color: #333;
+                color: rgb(0, 0, 0);
                 line-height: 1.4;
-                font-weight: 300;
+                font-weight: normal;
                 width: 100%;
                 box-sizing: border-box;
               }
@@ -386,33 +405,115 @@ export async function POST(req: NextRequest) {
         </html>
       `;
 
-      // Setze HTML-Inhalt
-      await page.setContent(html);
+      // PDF Generierung vorbereiten
+      // Setze Viewport auf A4-Größe
+      await page.setViewport({
+        width: 794,
+        height: 1123,
+        deviceScaleFactor: 2,
+      });
 
-      const pdf = await page.pdf({
+      // Lade die Roboto-Fonts
+      await page.evaluateHandle(() => {
+        return new Promise(async (resolve) => {
+          await document.fonts.ready;
+          
+          // Prüfe ob Roboto verfügbar ist
+          if (!document.fonts.check('1em Roboto')) {
+            // Wenn nicht, lade die Fonts dynamisch
+            const fontFace = new FontFace('Roboto', 'local("Roboto")');
+            const boldFontFace = new FontFace('Roboto', 'local("Roboto Bold")', { weight: 'bold' });
+            
+            try {
+              await Promise.all([
+                fontFace.load(),
+                boldFontFace.load()
+              ]);
+              
+              document.fonts.add(fontFace);
+              document.fonts.add(boldFontFace);
+            } catch (error) {
+              console.warn('Konnte Roboto Fonts nicht laden:', error);
+            }
+          }
+          
+          resolve(true);
+        });
+      });
+
+      // Setze den HTML-Inhalt und warte auf die Font-Ladung
+      await page.setContent(html, {
+        waitUntil: ['networkidle0', 'load']
+      });
+
+      // Generiere das PDF
+      const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: {
-          top: '20px',
-          right: '20px',
-          bottom: '20px',
-          left: '20px'
-        }
+        displayHeaderFooter: false,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        preferCSSPageSize: true
       });
 
-      await browser.close();
-      return new NextResponse(pdf, {
+      // Konvertiere das PDF zu PDF/A-3
+      const pdfDoc = await PDFDocument.load(pdfBuffer);
+
+      // Metadaten als PDF Info Dictionary setzen
+      const info = pdfDoc.getInfoDict();
+      if (info) {
+        info.set(PDFName.of('Title'), PDFString.of(invoice.number ? `Rechnung ${invoice.number}` : 'Rechnung'));
+        info.set(PDFName.of('Subject'), PDFString.of('Rechnung'));
+        info.set(PDFName.of('Keywords'), PDFString.of('Rechnung, ZUGFeRD, PDF/A-3'));
+        info.set(PDFName.of('Producer'), PDFString.of('Paybill Invoice System'));
+        info.set(PDFName.of('Creator'), PDFString.of('Paybill'));
+        info.set(PDFName.of('CreationDate'), PDFString.of(new Date().toISOString()));
+        info.set(PDFName.of('ModDate'), PDFString.of(new Date().toISOString()));
+      }
+
+      // Füge OutputIntent für sRGB hinzu
+      const outputIntent = pdfDoc.context.obj({
+        Type: 'OutputIntent',
+        S: 'GTS_PDFA1',
+        OutputConditionIdentifier: 'sRGB',
+        Info: 'sRGB IEC61966-2.1',
+        RegistryName: 'http://www.color.org'
+      });
+      
+      const catalog = pdfDoc.catalog;
+      const outputIntents = catalog.get(PDFName.of('OutputIntents'));
+      if (!outputIntents) {
+        catalog.set(PDFName.of('OutputIntents'), pdfDoc.context.obj([outputIntent]));
+      }
+
+      // Generiere das ZUGFeRD XML
+      const zugferdXml = createZugferdXml(invoice, settings);
+
+      // Füge die ZUGFeRD XML als Attachment hinzu
+      const zugferdBytes = new TextEncoder().encode(zugferdXml);
+      const attachment = await pdfDoc.attach(zugferdBytes, 'factur-x.xml', {
+        mimeType: 'application/xml',
+        description: 'ZUGFeRD 2.2 XML',
+        afRelationship: 'Alternative',
+        modificationDate: new Date()
+      });
+
+      // Speichere das finale PDF
+      const pdfA3Buffer = await pdfDoc.save({
+        useObjectStreams: false,
+        addDefaultPage: false
+      });
+
+      return new NextResponse(pdfA3Buffer, {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="Rechnung-${invoice.number}.pdf"`
+          'Content-Disposition': `attachment; filename="Rechnung_${invoice.number}.pdf"`
         }
       });
-    } catch (error) {
+    } finally {
       await browser.close();
-      throw error;
     }
   } catch (error) {
     console.error('Fehler bei der PDF-Generierung:', error);
-    return NextResponse.json({ error: 'PDF konnte nicht erstellt werden' }, { status: 500 });
+    return NextResponse.json({ error: 'Fehler bei der PDF-Generierung' }, { status: 500 });
   }
 }
